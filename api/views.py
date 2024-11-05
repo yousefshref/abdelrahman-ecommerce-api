@@ -136,7 +136,23 @@ def create_product(request):
         data['user'] = request.user.id
         serializer = ProductSerializer(data=data)
         if serializer.is_valid():
-            serializer.save()
+            product = serializer.save()
+            
+            # get related products
+            related_products = request.data.get('related_products_data', [])
+
+            if isinstance(related_products, str):
+                related_products = list(map(int, filter(None, related_products.split(','))))
+
+            if related_products:
+                for rp in related_products:
+                    related_product = get_object_or_404(Product, id=rp)
+                    product.related_products.add(related_product)
+            else:
+                product.related_products.clear()
+
+            product.save()
+
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -149,7 +165,23 @@ def update_product(request, pk):
     product = get_object_or_404(Product, pk=pk)
     serializer = ProductSerializer(product, data=request.data, partial=True)
     if serializer.is_valid():
-        serializer.save()
+        product = serializer.save()
+        
+        # get related products
+        related_products = request.data.get('related_products_data', [])
+
+        if isinstance(related_products, str):
+            related_products = list(map(int, filter(None, related_products.split(','))))
+
+        if related_products:
+            for rp in related_products:
+                related_product = get_object_or_404(Product, id=rp)
+                product.related_products.add(related_product)
+        else:
+            product.related_products.clear()
+
+        product.save()
+        
         return Response(serializer.data, status=status.HTTP_200_OK)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

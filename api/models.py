@@ -26,7 +26,12 @@ class Product(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)  # Reference to the seller
 
     # basic infos
-    images = models.JSONField(null=True, blank=True)  # Image of the account or game
+    # images = models.JSONField(null=True, blank=True)  # Image of the account or game
+    image1 = models.ImageField(upload_to='images/', null=True, blank=True)
+    image2 = models.ImageField(upload_to='images/', null=True, blank=True)
+    image3 = models.ImageField(upload_to='images/', null=True, blank=True)
+    image4 = models.ImageField(upload_to='images/', null=True, blank=True)
+
     name = models.CharField(max_length=100)  # Name of the game
     description = models.TextField()  # Description of the account, like what's included
     category = models.ForeignKey(Category, on_delete=models.CASCADE)  # Description of the account, like what's included
@@ -39,10 +44,16 @@ class Product(models.Model):
     stock = models.IntegerField()
     min_stock = models.IntegerField(null=True, blank=True)
 
+
+    # related products
+    related_products = models.ManyToManyField('self', blank=True, null=True, related_name='related_to')
+
     created_at = models.DateTimeField(auto_now_add=True)  # When the account was listed
 
     def __str__(self):
         return self.name
+
+
 
 
 
