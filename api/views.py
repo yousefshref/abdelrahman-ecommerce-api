@@ -51,7 +51,7 @@ def user(request):
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticatedOrReadOnly])
 def get_products(request):
-    products = Product.objects.all()
+    products = Product.objects.all().order_by('-id')
     serializer = ProductSerializer(products, many=True)
     return Response(serializer.data)
 
@@ -133,6 +133,28 @@ def get_categories(request):
     serializer = CategorySerializer(categories, many=True)
     return Response(serializer.data)
 
+@api_view(['POST'])
+def create_category(request):
+    serializer = CategorySerializer(data=request.data)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['PUT'])
+def update_category(request, pk):
+    category = get_object_or_404(Category, pk=pk)
+    serializer = CategorySerializer(category, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['DELETE'])
+def delete_category(request, pk):
+    category = get_object_or_404(Category, pk=pk)
+    category.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
 
 @api_view(['POST'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])

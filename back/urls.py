@@ -36,6 +36,9 @@ urlpatterns = [
     path('users/sales/', views.get_sales_users),
 
     path('categories/', views.get_categories),
+    path('categories/create/', views.create_category),
+    path('categories/update/<int:pk>/', views.update_category),
+    path('categories/delete/<int:pk>/', views.delete_category),
     
 
     path('products/', views.get_products),
