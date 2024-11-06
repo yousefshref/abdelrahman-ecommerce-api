@@ -36,7 +36,8 @@ def login(request):
 
 @api_view(['GET'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
-@permission_classes([IsAuthenticated])
+# @permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def user(request):
     serializer = UserSerializer(request.user)
     return Response(serializer.data)
