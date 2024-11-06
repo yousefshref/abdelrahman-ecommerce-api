@@ -39,8 +39,11 @@ def login(request):
 # @permission_classes([IsAuthenticated])
 @permission_classes([AllowAny])
 def user(request):
-    serializer = UserSerializer(request.user)
-    return Response(serializer.data)
+    if not request.user.is_authenticated:
+        serializer = UserSerializer(request.user)
+        return Response(serializer.data)
+    else:
+        return Response('You are not authenticated', status=status.HTTP_401_UNAUTHORIZED)
 
 
 
@@ -80,7 +83,11 @@ from django.db import transaction
 def create_order(request):
     
     data = request.data.copy()
-    data['user'] = request.user.id
+    
+    if request.user.is_authenticated:
+        data['user'] = request.user.id
+    else:
+        data['user'] = None
 
     serializer = OrderSerializer(data=data)
     if serializer.is_valid():
