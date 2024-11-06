@@ -281,10 +281,10 @@ def update_order(request, pk):
                 elif int(quantity) < int(order_item.quantity):
                     # Increase stock back if the new quantity is less
                     stock_difference = int(order_item.quantity) - int(quantity)
-                    order_item.product.stock += stock_difference
+                    order_item.product.stock += int(stock_difference)
                 
                 # Update the order item quantity
-                order_item.quantity = quantity
+                order_item.quantity = int(quantity)
                 order_item.save()
                 order_item.product.save()
                 existing_items.pop(order_item.id, None)  # Remove from existing items tracker
@@ -298,7 +298,7 @@ def update_order(request, pk):
                 
                 # Create new OrderItem and reduce stock
                 OrderItem.objects.create(order=order, product=product, quantity=quantity)
-                product.stock -= quantity
+                product.stock -= int(quantity)
                 product.save()
         
         # Delete any OrderItems that are not included in the request data
