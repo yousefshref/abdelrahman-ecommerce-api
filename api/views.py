@@ -144,6 +144,8 @@ def create_product(request):
             if isinstance(related_products, str):
                 related_products = list(map(int, filter(None, related_products.split(','))))
 
+            
+
             if related_products:
                 for rp in related_products:
                     related_product = get_object_or_404(Product, id=rp)
@@ -291,7 +293,7 @@ def update_order(request, pk):
                 # Handle new OrderItem creation
                 product = get_object_or_404(Product, pk=product_id)
                 
-                if product.stock < quantity:
+                if int(product.stock) < int(quantity):
                     return Response({'error': f'Insufficient stock for product {product.name}'}, status=status.HTTP_400_BAD_REQUEST)
                 
                 # Create new OrderItem and reduce stock
