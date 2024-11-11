@@ -46,12 +46,30 @@ def user(request):
 
 
 
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([AllowAny])
+def get_user(request, pk):
+    user = get_object_or_404(CustomUser, pk=pk)
+    serializer = UserSerializer(user)
+    return Response(serializer.data)
 
 @api_view(['GET'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticatedOrReadOnly])
 def get_products(request):
     products = Product.objects.all().order_by('-id')
+
+    # search
+    search = request.GET.get('search')
+    if search:
+        products = products.filter(name__icontains=search)
+
+    # category
+    category = request.GET.get('category')
+    if category:
+        products = products.filter(category__id=category)
+
     serializer = ProductSerializer(products, many=True)
     return Response(serializer.data)
 
@@ -65,13 +83,43 @@ def get_product(request, pk):
     return Response(serializer.data)
 
 
-@api_view(['GET'])
-def states(request):
-    states = State.objects.all()
-    serializer = StateSerializer(states, many=True)
-    return Response(serializer.data)
 
+@api_view(['GET', 'POST'])
+def states_list(request):
+    if request.method == 'GET':
+        states = State.objects.all().order_by('name')
+        serializer = StateSerializer(states, many=True)
+        return Response(serializer.data)
 
+    elif request.method == 'POST':
+        serializer = StateSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET', 'PUT', 'DELETE'])
+def state_detail(request, pk):
+    try:
+        state = State.objects.get(pk=pk)
+    except State.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        serializer = StateSerializer(state)
+        return Response(serializer.data)
+
+    elif request.method == 'PUT':
+        serializer = StateSerializer(state, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    elif request.method == 'DELETE':
+        state.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    
 
 # create order funtion
 from django.db import transaction
@@ -382,6 +430,108 @@ def update_user(request, pk):
         serializer.save()
         return Response(serializer.data, status=status.HTTP_200_OK)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['PUT'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def update_user_password(request, pk):
+    user = get_object_or_404(CustomUser, pk=pk)
+    serializer = UserSerializer(user, data=request.data, partial=True)
+    if serializer.is_valid():
+        user.set_password(serializer.validated_data['password'])
+        user.save()
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
+def send_email(sender_email, sender_password, recipient_email, subject, message):
+    try:
+        # Set up the MIME
+        email_msg = MIMEMultipart()
+        email_msg['From'] = sender_email
+        email_msg['To'] = recipient_email
+        email_msg['Subject'] = subject
+
+        # Attach message to email
+        email_msg.attach(MIMEText(message, 'plain'))
+
+        # SMTP server configuration
+        smtp_server = "smtp.gmail.com"  # Use appropriate SMTP server (e.g., Gmail, Outlook)
+        smtp_port = 587  # Port for TLS
+
+        # Set up the server and send email
+        server = smtplib.SMTP(smtp_server, smtp_port)
+        server.starttls()  # Enable TLS for security
+        server.login(sender_email, sender_password)
+        text = email_msg.as_string()
+        server.sendmail(sender_email, recipient_email, text)
+        
+        server.quit()  # Disconnect from the server
+        print("Email sent successfully!")
+    except Exception as e:
+        print(f"Failed to send email: {e}")
+
+
+
+@api_view(['POST'])
+def send_email_to_sales_with_his_target(request):
+    date_from = request.data.get('date_from')
+    date_to = request.data.get('date_to')
+    # get the user
+    user = CustomUser.objects.get(id=request.data['user_id'])
+    # get the order that contains the user id
+    orders = Order.objects.filter(sales_who_added=user)
+    if date_from and date_to:
+        orders = orders.filter(created_at__range=[date_from, date_to])
+    # get the total of user commissions
+    user_commission = int(user.commission)
+    # get the total of orders
+
+    total_orders = 0
+    for order in orders:
+        total = 0
+
+        order_items = OrderItem.objects.filter(order=order)
+        
+        for order_item in order_items:
+            order_item_price = 0
+            if order_item.product.offer_price:
+                order_item_price = order_item.product.offer_price
+            else:
+                order_item_price = order_item.product.price
+
+            total += int(order_item_price * order_item.quantity)
+
+        state_details = State.objects.get(id=order.state.id)
+        total += int(state_details.shipping_price)
+
+        if(order.is_fast_shipping):
+            total += int(state_details.fast_shipping_price)
+
+        total_orders += total
+    
+    total_after_commissions = total_orders * (100 - user_commission) / 100
+
+    # send email to him with report of his target
+
+    send_email(
+        sender_email='yb2005at@gmail.com',
+        sender_password='hkbe grom ltat imiw',
+        recipient_email=user.email,
+        subject='Your target report',
+        message=f'Your total orders: {total_orders}\nYour commission: {user_commission}\nYour total after commissions: {total_after_commissions}'
+    )
+
+    return Response(status=status.HTTP_200_OK)
+
+
 
 
 

@@ -30,10 +30,13 @@ urlpatterns = [
     path('login/', views.login),
 
     path('user/', views.user),
+    path('users/<int:pk>/', views.get_user),
     path('users/', views.get_users),
     path('users/<int:pk>/update/', views.update_user),
+    path('users/<int:pk>/update-password/', views.update_user_password),
 
     path('users/sales/', views.get_sales_users),
+    path('users/sales/send-report/', views.send_email_to_sales_with_his_target),
 
     path('categories/', views.get_categories),
     path('categories/create/', views.create_category),
@@ -48,7 +51,8 @@ urlpatterns = [
     path('products/delete/<int:pk>/', views.delete_product),
 
     
-    path('states/', views.states),
+    path('states/', views.states_list),
+    path('states/<int:pk>/', views.state_detail),
 
     path('orders/create/', views.create_order),
     path('orders/', views.get_orders),

@@ -59,6 +59,7 @@ class Product(models.Model):
 class State(models.Model):
     name = models.CharField(max_length=100)
     shipping_price = models.IntegerField()
+    fast_shipping_price = models.IntegerField(null=True, blank=True)
 
     def __str__(self):
         return self.name
@@ -73,6 +74,8 @@ class Order(models.Model):
     email = models.CharField(max_length=100, null=True, blank=True)
     state = models.ForeignKey('State', on_delete=models.CASCADE)
     address = models.CharField(max_length=100)
+
+    is_fast_shipping = models.BooleanField(default=False)
 
     status = models.CharField(max_length=100, choices=[('pending', 'Pending'), ('processing', 'Processing'), ('shipped', 'Shipped'), ('delivered', 'Delivered'), ('cancelled', 'Cancelled')], default='pending')
     tracking_code = models.CharField(max_length=100, null=True, blank=True)
