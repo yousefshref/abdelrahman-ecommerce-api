@@ -58,5 +58,7 @@ urlpatterns = [
     path('orders/', views.get_orders),
     path('orders/update/<int:pk>/', views.update_order),
     path('orders/delete/<int:pk>/', views.delete_order),
+
+    path('home_page_images/', views.home_page_images),
 ]
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

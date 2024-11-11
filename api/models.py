@@ -100,3 +100,6 @@ class OrderItem(models.Model):
 
 
 
+class HomePageImage(models.Model):
+    image = models.ImageField(upload_to='images/')
+

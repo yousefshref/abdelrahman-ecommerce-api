@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import CustomUser, Category, Product, State, Order, OrderItem
+from .models import CustomUser, Category, Product, State, Order, OrderItem, HomePageImage
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -52,6 +52,15 @@ class OrderSerializer(serializers.ModelSerializer):
     sales_who_added_details = UserSerializer(read_only=True, source='sales_who_added')
     class Meta():
         model = Order
+        fields = "__all__"
+
+
+
+
+
+class HomePageImageSerializer(serializers.ModelSerializer):
+    class Meta():
+        model = HomePageImage
         fields = "__all__"
 
 

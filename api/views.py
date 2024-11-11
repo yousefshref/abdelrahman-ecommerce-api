@@ -7,8 +7,8 @@ from rest_framework import status
 from django.shortcuts import get_object_or_404
 from rest_framework.authtoken.models import Token
 
-from .serializers import UserSerializer, ProductSerializer, StateSerializer, CategorySerializer, OrderSerializer, OrderItemSerializer
-from .models import CustomUser, Product, State, Order, OrderItem, Category
+from .serializers import UserSerializer, ProductSerializer, StateSerializer, CategorySerializer, OrderSerializer, OrderItemSerializer, HomePageImageSerializer
+from .models import CustomUser, Product, State, Order, OrderItem, Category, HomePageImage
 
 
 
@@ -534,6 +534,12 @@ def send_email_to_sales_with_his_target(request):
 
 
 
+
+@api_view(['GET'])
+def home_page_images(request):
+    images = HomePageImage.objects.all()
+    serializer = HomePageImageSerializer(images, many=True)
+    return Response(serializer.data)
 
 
 
