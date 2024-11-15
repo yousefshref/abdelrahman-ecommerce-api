@@ -522,8 +522,8 @@ def send_email_to_sales_with_his_target(request):
     # send email to him with report of his target
 
     send_email(
-        sender_email='yb2005at@gmail.com',
-        sender_password='hkbe grom ltat imiw',
+        sender_email='abdelrahmanmashaly779@gmail.com',
+        sender_password='xkiz irbq vdtf qzwn',
         recipient_email=user.email,
         subject='Your target report',
         message=f'Your total orders: {total_orders}\nYour commission: {user_commission}\nYour total after commissions: {total_after_commissions}'
@@ -541,6 +541,19 @@ def home_page_images(request):
     serializer = HomePageImageSerializer(images, many=True)
     return Response(serializer.data)
 
+@api_view(['POST'])
+def create_home_page_image(request):
+    serializer = HomePageImageSerializer(data=request.data)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['DELETE'])
+def delete_home_page_image(request, pk):
+    image = get_object_or_404(HomePageImage, pk=pk)
+    image.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 
