@@ -28,8 +28,8 @@ front_end_url = "https://abdelrahman-ecommerce-front.vercel.app"
 
 
 def send_email(recipient_email, subject, message, content_type="plain"):
-    sender_email = "abdelrahmanmashaly779@gmail.com"
-    sender_password = "xkiz irbq vdtf qzwn"
+    sender_email = "safezone61099@gmail.com"
+    sender_password = "vglh kjym kvlm pbng"
     try:
         # Set up the MIME
         email_msg = MIMEMultipart()
