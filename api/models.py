@@ -4,6 +4,9 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 
 
+from django.utils.timezone import now  # Import this to get the current time
+
+
 class CustomUser(AbstractUser):
     profile_picture = models.TextField(null=True, blank=True)  # Optional profile picture
     is_shipping_employee = models.BooleanField(default=False)
@@ -81,11 +84,18 @@ class Order(models.Model):
     tracking_code = models.CharField(max_length=100, null=True, blank=True)
     sales_who_added = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='sales', null=True, blank=True)
 
-    created_at = models.DateField(auto_now_add=True)
+    total = models.IntegerField(null=True, blank=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return self.name
+        return str(self.pk) + " " + str(self.name)
 
+    
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+
+                
 
 
 class OrderItem(models.Model):
@@ -98,8 +108,24 @@ class OrderItem(models.Model):
 
 
 
-
-
 class HomePageImage(models.Model):
     image = models.ImageField(upload_to='images/')
+
+
+
+
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
+@receiver(post_save, sender=Order)
+def update_stock_on_cancel(sender, instance, **kwargs):
+    """
+    Adjust product stock when an order's status changes to 'cancelled'.
+    """
+    if instance.status == 'cancelled':
+        # Iterate through the items in the order
+        for item in instance.items.all():
+            item.product.stock += item.quantity
+            item.product.save()
+
 

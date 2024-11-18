@@ -11,6 +11,53 @@ from .serializers import UserSerializer, ProductSerializer, StateSerializer, Cat
 from .models import CustomUser, Product, State, Order, OrderItem, Category, HomePageImage
 
 
+from datetime import timedelta
+from django.utils.timezone import now
+
+
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
+
+
+
+# front_end_url = "http://localhost:5173"
+front_end_url = "https://abdelrahman-ecommerce-front.vercel.app"
+
+
+
+def send_email(recipient_email, subject, message, content_type="plain"):
+    sender_email = "abdelrahmanmashaly779@gmail.com"
+    sender_password = "xkiz irbq vdtf qzwn"
+    try:
+        # Set up the MIME
+        email_msg = MIMEMultipart()
+        email_msg['From'] = sender_email
+        email_msg['To'] = recipient_email
+        email_msg['Subject'] = subject
+
+        # Attach the message based on the content type
+        email_msg.attach(MIMEText(message, content_type))
+
+        # SMTP server configuration
+        smtp_server = "smtp.gmail.com"
+        smtp_port = 587
+
+        # Set up the server and send email
+        server = smtplib.SMTP(smtp_server, smtp_port)
+        server.starttls()  # Enable TLS for security
+        server.login(sender_email, sender_password)
+        text = email_msg.as_string()
+        server.sendmail(sender_email, recipient_email, text)
+
+        server.quit()  # Disconnect from the server
+        print("Email sent successfully!")
+    except Exception as e:
+        print(f"Failed to send email: {e}")
+
+
+
 
 @api_view(['POST'])
 def signup(request):
@@ -124,6 +171,9 @@ def state_detail(request, pk):
 # create order funtion
 from django.db import transaction
 
+
+
+
 @api_view(['POST'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([AllowAny])
@@ -161,6 +211,103 @@ def create_order(request):
             else:
                 return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
 
+        order_obj = Order.objects.get(id=order.id)
+        order_items = OrderItem.objects.filter(order=order_obj)
+
+        # Sample variables to include in the email
+        customer_name = order_obj.name
+        order_date = order_obj.created_at
+        order_total = 0
+
+        for item in order_items:
+            price = 0
+            if item.product.offer_price:
+                price = item.product.offer_price
+            else:
+                price = item.product.price
+
+            order_total += price * item.quantity
+        
+        shipping_cost = State.objects.get(id=order_obj.state.pk).shipping_price
+        order_total += shipping_cost
+
+        if order_obj.is_fast_shipping:
+            fast_shipping_cost = State.objects.get(id=order_obj.state.pk).fast_shipping_price
+            order_total += fast_shipping_cost
+
+
+        # Construct the HTML content
+        html_content = f"""
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <style>
+                body {{
+                    font-family: Arial, sans-serif;
+                }}
+                table {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-top: 20px;
+                }}
+                th, td {{
+                    border: 1px solid #ddd;
+                    padding: 8px;
+                    text-align: left;
+                }}
+                th {{
+                    background-color: #f2f2f2;
+                }}
+            </style>
+        </head>
+        <body>
+            <h1>Hello {customer_name},</h1>
+            <p>Thank you for your order placed on {order_date}.</p>
+            <p>Here are the details of your order:</p>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Item</th>
+                        <th>Quantity</th>
+                        <th>Price</th>
+                    </tr>
+                </thead>
+                <tbody>
+        """
+
+        # Add each order item to the email body
+        for item in order_items:
+            price = 0
+            if item.product.offer_price:
+                price = item.product.offer_price
+            else:
+                price = item.product.price
+            html_content += f"""
+                    <tr>
+                        <td>{item.product.name}</td>
+                        <td>{item.quantity}</td>
+                        <td>{price * item.quantity} EGP</td>
+                    </tr>
+            """
+
+        # Close the HTML content
+        html_content += f"""
+                </tbody>
+            </table>
+            <p>If you want to cancel your order, please visit <a style="color: blue;" href="{front_end_url}/orders/cancel/?order_id={order_obj.id}&email={order_obj.email}">this link</a> before 24 hours of placing your order.</p>
+            <p><strong>Total:</strong> {order_total} EGP</p>
+            <p>We hope to see you again soon!</p>
+        </body>
+        </html>
+        """
+        if order_obj.email:
+            send_email(
+                    recipient_email=order_obj.email,
+                    subject='تم انشاء طلبك',
+                    message=html_content,
+                    content_type="html"
+                )
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -323,6 +470,11 @@ def get_orders(request):
     return Response(serializer.data)
 
 
+@api_view(['GET'])
+def get_order(request, pk):
+    order = get_object_or_404(Order, pk=pk)
+    serializer = OrderSerializer(order)
+    return Response(serializer.data)
 
 @api_view(['PUT'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
@@ -447,38 +599,6 @@ def update_user_password(request, pk):
 
 
 
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-
-def send_email(sender_email, sender_password, recipient_email, subject, message):
-    try:
-        # Set up the MIME
-        email_msg = MIMEMultipart()
-        email_msg['From'] = sender_email
-        email_msg['To'] = recipient_email
-        email_msg['Subject'] = subject
-
-        # Attach message to email
-        email_msg.attach(MIMEText(message, 'plain'))
-
-        # SMTP server configuration
-        smtp_server = "smtp.gmail.com"  # Use appropriate SMTP server (e.g., Gmail, Outlook)
-        smtp_port = 587  # Port for TLS
-
-        # Set up the server and send email
-        server = smtplib.SMTP(smtp_server, smtp_port)
-        server.starttls()  # Enable TLS for security
-        server.login(sender_email, sender_password)
-        text = email_msg.as_string()
-        server.sendmail(sender_email, recipient_email, text)
-        
-        server.quit()  # Disconnect from the server
-        print("Email sent successfully!")
-    except Exception as e:
-        print(f"Failed to send email: {e}")
-
-
 
 @api_view(['POST'])
 def send_email_to_sales_with_his_target(request):
@@ -522,14 +642,48 @@ def send_email_to_sales_with_his_target(request):
     # send email to him with report of his target
 
     send_email(
-        sender_email='abdelrahmanmashaly779@gmail.com',
-        sender_password='xkiz irbq vdtf qzwn',
+        content_type="plain",
         recipient_email=user.email,
         subject='Your target report',
         message=f'Your total orders: {total_orders}\nYour commission: {user_commission}\nYour total after commissions: {total_after_commissions}'
     )
 
     return Response(status=status.HTTP_200_OK)
+
+
+
+
+# cancel order
+@api_view(['GET'])
+def cancel_order(request):
+    # Get order ID from the request
+    order_id = request.GET.get('order_id')
+    email = request.GET.get('email')
+
+    if not order_id:
+        return Response({"error": "Order ID is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Retrieve the order or return 404 if not found
+    order = get_object_or_404(Order, id=order_id)
+
+    if str(order.email) == str(email):
+        # Check if the order was created in the last 24 hours
+        cancellation_deadline = order.created_at + timedelta(days=1)
+
+        if now() <= cancellation_deadline:
+            order.status = 'cancelled'
+            order.save()
+            return Response(
+                {"message": "Order cancelled successfully."}, 
+                status=status.HTTP_200_OK
+            )
+        else:
+            return Response(
+                {"message": "Cancellation period has expired. Order cannot be canceled."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    else:
+        return Response({"error": "You have no permission to cancel this order."}, status=status.HTTP_400_BAD_REQUEST)
 
 
 

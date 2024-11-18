@@ -56,8 +56,11 @@ urlpatterns = [
 
     path('orders/create/', views.create_order),
     path('orders/', views.get_orders),
+    path('orders/<int:pk>/', views.get_order),
     path('orders/update/<int:pk>/', views.update_order),
     path('orders/delete/<int:pk>/', views.delete_order),
+    path('orders/cancel/', views.cancel_order),
+
 
     path('home_page_images/', views.home_page_images),
     path('home_page_images/create/', views.create_home_page_image),
