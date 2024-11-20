@@ -27,6 +27,8 @@ class Category(models.Model):
 class Product(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)  # Reference to the seller
 
+    rank = models.IntegerField(null=True, blank=True)
+
     # basic infos
     # images = models.JSONField(null=True, blank=True)  # Image of the account or game
     image1 = models.ImageField(upload_to='images/', null=True, blank=True)

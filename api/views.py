@@ -105,7 +105,7 @@ def get_user(request, pk):
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticatedOrReadOnly])
 def get_products(request):
-    products = Product.objects.all().order_by('-id')
+    products = Product.objects.all().order_by('rank')
 
     # search
     search = request.GET.get('search')
