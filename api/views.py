@@ -103,7 +103,7 @@ def get_user(request, pk):
     return Response(serializer.data)
 
 
-from django.db import models
+from django.db.models import Q, F
 
 @api_view(['GET'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
@@ -123,7 +123,8 @@ def get_products(request):
 
     about_to_end = request.GET.get('about_to_end')
     if about_to_end:
-        products = products.filter(stock__lte=models.F('min_stock'))
+        products = products.filter(Q(min_stock__isnull=False) & Q(stock__lte=F('min_stock')))
+
 
     serializer = ProductSerializer(products, many=True)
     return Response(serializer.data)
