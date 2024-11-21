@@ -102,6 +102,9 @@ def get_user(request, pk):
     serializer = UserSerializer(user)
     return Response(serializer.data)
 
+
+from django.db import models
+
 @api_view(['GET'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticatedOrReadOnly])
@@ -117,6 +120,10 @@ def get_products(request):
     category = request.GET.get('category')
     if category:
         products = products.filter(category__id=category)
+
+    about_to_end = request.GET.get('about_to_end')
+    if about_to_end:
+        products = products.filter(stock__lte=models.F('min_stock'))
 
     serializer = ProductSerializer(products, many=True)
     return Response(serializer.data)
