@@ -23,7 +23,8 @@ from email.mime.text import MIMEText
 
 
 # front_end_url = "http://localhost:5173"
-front_end_url = "https://abdelrahman-ecommerce-front.vercel.app"
+# front_end_url = "https://abdelrahman-ecommerce-front.vercel.app"
+front_end_url = "https://safe-zone.store"
 
 
 
