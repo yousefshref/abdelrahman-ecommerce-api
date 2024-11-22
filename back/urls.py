@@ -51,6 +51,9 @@ urlpatterns = [
     path('products/delete/<int:pk>/', views.delete_product),
 
     
+    path('email/send/', views.send_email),
+
+
     path('states/', views.states_list),
     path('states/<int:pk>/', views.state_detail),
 

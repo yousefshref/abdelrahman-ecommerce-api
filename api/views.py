@@ -58,9 +58,11 @@ def send_email(recipient_email, subject, message, content_type="plain"):
         print(f"Failed to send email: {e}")
 
 
-# @api_view(['POST'])
-# def send_email(request):
-    
+@api_view(['POST'])
+def send_email(request):
+    data = request.data.copy()
+    send_email(data['recipient_email'], data['subject'], data['message'], data['content_type'])
+    return Response("Email sent successfully!", status=status.HTTP_200_OK)
 
 
 @api_view(['POST'])
@@ -495,14 +497,6 @@ def update_order(request, pk):
     order = get_object_or_404(Order, pk=pk)
     data = request.data.copy()
 
-    send_email_check = False
-    if order.status != data['status']:
-        send_email_check = True
-
-    send_track_code_check = False
-    if data['tracking_code'] != order.tracking_code:
-        send_track_code_check = True
-
     serializer = OrderSerializer(order, data=data, partial=True)
     if serializer.is_valid():
         # Track order items from the request
@@ -558,20 +552,6 @@ def update_order(request, pk):
         
         # Save the order after processing items
         order = serializer.save()
-
-        if send_email_check and order.email:
-            send_email(
-                recipient_email=order.email,
-                subject="تم تغيير حالة طلبك",
-                message=f"تم تغيير خالة طلبك من {order.stauts} الى {data['status']}, ترقب وصول منتجك في اي وقت قريب."
-            )
-
-        if send_track_code_check and order.email:
-            send_email(
-                recipient_email=order.email,
-                subject="يمكنك تتبع طلبك الأن",
-                message=f"يمكنك تتبع الطلب الأن من خلال هذا الكود {order.tracking_code}"
-            )
         return Response(serializer.data, status=status.HTTP_200_OK)
     
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
