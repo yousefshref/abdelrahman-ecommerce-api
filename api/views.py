@@ -59,7 +59,7 @@ def send_email(recipient_email, subject, message, content_type="plain"):
 
 
 @api_view(['POST'])
-def send_email(request):
+def send_email_function_api(request):
     data = request.data.copy()
     send_email(data['recipient_email'], data['subject'], data['message'], data['content_type'])
     return Response("Email sent successfully!", status=status.HTTP_200_OK)
