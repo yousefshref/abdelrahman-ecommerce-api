@@ -146,7 +146,7 @@ def get_product(request, pk):
 @api_view(['GET', 'POST'])
 def states_list(request):
     if request.method == 'GET':
-        states = State.objects.all().order_by('name')
+        states = State.objects.all().order_by('rank')
         serializer = StateSerializer(states, many=True)
         return Response(serializer.data)
 

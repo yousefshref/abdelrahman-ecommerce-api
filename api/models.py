@@ -66,6 +66,8 @@ class State(models.Model):
     shipping_price = models.IntegerField()
     fast_shipping_price = models.IntegerField(null=True, blank=True)
 
+    rank = models.IntegerField(null=True, blank=True, default=0)
+
     def __str__(self):
         return self.name
 
