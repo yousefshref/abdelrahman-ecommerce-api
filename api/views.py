@@ -98,6 +98,13 @@ def user(request):
         return Response('You are not authenticated', status=status.HTTP_401_UNAUTHORIZED)
 
 
+@api_view(['DELETE'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([AllowAny])
+def delete_user(request, pk):
+    user = get_object_or_404(CustomUser, pk=pk)
+    user.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
 
 @api_view(['GET'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])

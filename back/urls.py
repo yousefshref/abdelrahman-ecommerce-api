@@ -30,6 +30,7 @@ urlpatterns = [
     path('login/', views.login),
 
     path('user/', views.user),
+    path('users/<int:pk>/delete/', views.delete_user),
     path('users/<int:pk>/', views.get_user),
     path('users/', views.get_users),
     path('users/<int:pk>/update/', views.update_user),
