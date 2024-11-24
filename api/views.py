@@ -690,48 +690,37 @@ def update_user_password(request, pk):
 def send_email_to_sales_with_his_target(request):
     date_from = request.data.get('date_from')
     date_to = request.data.get('date_to')
-    # get the user
+
     user = CustomUser.objects.get(id=request.data['user_id'])
-    # get the order that contains the user id
+
+    # get his orders
     orders = Order.objects.filter(sales_who_added=user)
     if date_from and date_to:
         orders = orders.filter(created_at__range=[date_from, date_to])
-    # get the total of user commissions
-    user_commission = int(user.commission)
-    # get the total of orders
 
-    total_orders = 0
+    # get his total orders price
+    orders_total_price = 0
     for order in orders:
-        total = 0
+        orders_total_price += order.total
 
-        order_items = OrderItem.objects.filter(order=order)
-        
-        for order_item in order_items:
-            order_item_price = 0
-            if order_item.product.offer_price:
-                order_item_price = order_item.product.offer_price
-            else:
-                order_item_price = order_item.product.price
+    # user total commission
+    user_commission = orders_total_price * (user.commission / 100)
 
-            total += int(order_item_price * order_item.quantity)
-
-        state_details = State.objects.get(id=order.state.id)
-        total += int(state_details.shipping_price)
-
-        if(order.is_fast_shipping):
-            total += int(state_details.fast_shipping_price)
-
-        total_orders += total
-    
-    total_after_commissions = total_orders * (100 - user_commission) / 100
-
-    # send email to him with report of his target
+    # send email to sales
+    subject = 'Sales Report'
+    message = f'''
+    <h1>Sales Report</h1>
+    <p>From: {date_from}</p>
+    <p>To: {date_to}</p>
+    <p>Total Orders: {orders_total_price} EGP</p>
+    <p>Your Total Commission: {user_commission} EGP</p>
+    '''
 
     send_email(
-        content_type="plain",
+        subject=subject,
+        message=message,
         recipient_email=user.email,
-        subject='Your target report',
-        message=f'Your total orders: {total_orders}\nYour commission: {user_commission}\nYour total after commissions: {total_after_commissions}'
+        content_type="html",
     )
 
     return Response(status=status.HTTP_200_OK)
