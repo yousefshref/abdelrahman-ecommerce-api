@@ -497,6 +497,71 @@ def get_order(request, pk):
     serializer = OrderSerializer(order)
     return Response(serializer.data)
 
+# @api_view(['PUT'])
+# @authentication_classes([SessionAuthentication, TokenAuthentication])
+# @permission_classes([IsAuthenticated])
+# def update_order(request, pk):
+#     order = get_object_or_404(Order, pk=pk)
+#     data = request.data.copy()
+
+#     serializer = OrderSerializer(order, data=data, partial=True)
+#     if serializer.is_valid():
+#         # Track order items from the request
+#         order_items_data = data.get('order_items', [])
+        
+#         # Dictionary to track existing OrderItem objects
+#         existing_items = {item.id: item for item in order.items.all()}
+        
+#         for item_data in order_items_data:
+#             product_id = item_data.get('product')
+#             quantity = item_data.get('quantity', 0)
+            
+#             try:
+#                 # Check if the OrderItem already exists
+#                 order_item = OrderItem.objects.get(order=order, product_id=product_id)
+                
+#                 # Update the quantity and check stock availability
+#                 if int(quantity) > int(order_item.quantity):
+#                     additional_quantity_needed = int(quantity) - int(order_item.quantity)
+#                     if int(order_item.product.stock) < int(additional_quantity_needed):
+#                         return Response({'error': f'Insufficient stock for product {order_item.product.name}'}, status=status.HTTP_400_BAD_REQUEST)
+                    
+#                     # Reduce stock
+#                     order_item.product.stock -= additional_quantity_needed
+#                 elif int(quantity) < int(order_item.quantity):
+#                     # Increase stock back if the new quantity is less
+#                     stock_difference = int(order_item.quantity) - int(quantity)
+#                     order_item.product.stock += int(stock_difference)
+                
+#                 # Update the order item quantity
+#                 order_item.quantity = int(quantity)
+#                 order_item.save()
+#                 order_item.product.save()
+#                 existing_items.pop(order_item.id, None)  # Remove from existing items tracker
+                
+#             except OrderItem.DoesNotExist:
+#                 # Handle new OrderItem creation
+#                 product = get_object_or_404(Product, pk=product_id)
+                
+#                 if int(product.stock) < int(quantity):
+#                     return Response({'error': f'Insufficient stock for product {product.name}'}, status=status.HTTP_400_BAD_REQUEST)
+                
+#                 # Create new OrderItem and reduce stock
+#                 OrderItem.objects.create(order=order, product=product, quantity=quantity)
+#                 product.stock -= int(quantity)
+#                 product.save()
+        
+#         # Delete any OrderItems that are not included in the request data
+#         for remaining_item in existing_items.values():
+#             remaining_item.product.stock += remaining_item.quantity  # Restore stock
+#             remaining_item.product.save()
+#             remaining_item.delete()
+        
+#         # Save the order after processing items
+#         order = serializer.save()
+#         return Response(serializer.data, status=status.HTTP_200_OK)
+    
+#     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 @api_view(['PUT'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticated])
@@ -504,65 +569,65 @@ def update_order(request, pk):
     order = get_object_or_404(Order, pk=pk)
     data = request.data.copy()
 
+    # Update order fields (except order_items)
     serializer = OrderSerializer(order, data=data, partial=True)
     if serializer.is_valid():
-        # Track order items from the request
-        order_items_data = data.get('order_items', [])
-        
-        # Dictionary to track existing OrderItem objects
-        existing_items = {item.id: item for item in order.items.all()}
-        
-        for item_data in order_items_data:
-            product_id = item_data.get('product')
-            quantity = item_data.get('quantity', 0)
+        # Process order_items only if they are included in the request
+        order_items_data = data.get('order_items')
+        if order_items_data is not None:
+            # Dictionary to track existing OrderItem objects
+            existing_items = {item.id: item for item in order.items.all()}
             
-            try:
-                # Check if the OrderItem already exists
-                order_item = OrderItem.objects.get(order=order, product_id=product_id)
+            for item_data in order_items_data:
+                product_id = item_data.get('product')
+                quantity = item_data.get('quantity', 0)
                 
-                # Update the quantity and check stock availability
-                if int(quantity) > int(order_item.quantity):
-                    additional_quantity_needed = int(quantity) - int(order_item.quantity)
-                    if int(order_item.product.stock) < int(additional_quantity_needed):
-                        return Response({'error': f'Insufficient stock for product {order_item.product.name}'}, status=status.HTTP_400_BAD_REQUEST)
+                try:
+                    # Check if the OrderItem already exists
+                    order_item = OrderItem.objects.get(order=order, product_id=product_id)
                     
-                    # Reduce stock
-                    order_item.product.stock -= additional_quantity_needed
-                elif int(quantity) < int(order_item.quantity):
-                    # Increase stock back if the new quantity is less
-                    stock_difference = int(order_item.quantity) - int(quantity)
-                    order_item.product.stock += int(stock_difference)
-                
-                # Update the order item quantity
-                order_item.quantity = int(quantity)
-                order_item.save()
-                order_item.product.save()
-                existing_items.pop(order_item.id, None)  # Remove from existing items tracker
-                
-            except OrderItem.DoesNotExist:
-                # Handle new OrderItem creation
-                product = get_object_or_404(Product, pk=product_id)
-                
-                if int(product.stock) < int(quantity):
-                    return Response({'error': f'Insufficient stock for product {product.name}'}, status=status.HTTP_400_BAD_REQUEST)
-                
-                # Create new OrderItem and reduce stock
-                OrderItem.objects.create(order=order, product=product, quantity=quantity)
-                product.stock -= int(quantity)
-                product.save()
-        
-        # Delete any OrderItems that are not included in the request data
-        for remaining_item in existing_items.values():
-            remaining_item.product.stock += remaining_item.quantity  # Restore stock
-            remaining_item.product.save()
-            remaining_item.delete()
-        
-        # Save the order after processing items
+                    # Update the quantity and check stock availability
+                    if int(quantity) > int(order_item.quantity):
+                        additional_quantity_needed = int(quantity) - int(order_item.quantity)
+                        if int(order_item.product.stock) < int(additional_quantity_needed):
+                            return Response({'error': f'Insufficient stock for product {order_item.product.name}'}, status=status.HTTP_400_BAD_REQUEST)
+                        
+                        # Reduce stock
+                        order_item.product.stock -= additional_quantity_needed
+                    elif int(quantity) < int(order_item.quantity):
+                        # Increase stock back if the new quantity is less
+                        stock_difference = int(order_item.quantity) - int(quantity)
+                        order_item.product.stock += int(stock_difference)
+                    
+                    # Update the order item quantity
+                    order_item.quantity = int(quantity)
+                    order_item.save()
+                    order_item.product.save()
+                    existing_items.pop(order_item.id, None)  # Remove from existing items tracker
+                    
+                except OrderItem.DoesNotExist:
+                    # Handle new OrderItem creation
+                    product = get_object_or_404(Product, pk=product_id)
+                    
+                    if int(product.stock) < int(quantity):
+                        return Response({'error': f'Insufficient stock for product {product.name}'}, status=status.HTTP_400_BAD_REQUEST)
+                    
+                    # Create new OrderItem and reduce stock
+                    OrderItem.objects.create(order=order, product=product, quantity=quantity)
+                    product.stock -= int(quantity)
+                    product.save()
+            
+            # Delete any OrderItems that are not included in the request data
+            for remaining_item in existing_items.values():
+                remaining_item.product.stock += remaining_item.quantity  # Restore stock
+                remaining_item.product.save()
+                remaining_item.delete()
+
+        # Save the order after processing items (if any)
         order = serializer.save()
         return Response(serializer.data, status=status.HTTP_200_OK)
     
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
 
 
 
