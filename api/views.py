@@ -27,6 +27,10 @@ from email.mime.text import MIMEText
 front_end_url = "https://safe-zone.store"
 
 
+back_end_url = "http://127.0.0.1:8000/"
+# back_end_url = "https://abdelrahmanecommerce.pythonanywhere.com/"
+
+
 
 def send_email(recipient_email, subject, message, content_type="plain"):
     sender_email = "safezone61099@gmail.com"
@@ -289,6 +293,7 @@ def create_order(request):
             <table>
                 <thead>
                     <tr>
+                        <th>Image</th>
                         <th>Item</th>
                         <th>Quantity</th>
                         <th>Price</th>
@@ -306,6 +311,9 @@ def create_order(request):
                 price = item.product.price
             html_content += f"""
                     <tr>
+                        <td>
+                            <img src=f"{back_end_url}{item.product.image1}" />
+                        </td>
                         <td>{item.product.name}</td>
                         <td>{item.quantity}</td>
                         <td>{price * item.quantity} EGP</td>
@@ -694,7 +702,7 @@ def send_email_to_sales_with_his_target(request):
     user = CustomUser.objects.get(id=request.data['user_id'])
 
     # get his orders
-    orders = Order.objects.filter(sales_who_added=user)
+    orders = Order.objects.filter(sales_who_added=user, status='delivered')
     if date_from and date_to:
         orders = orders.filter(created_at__range=[date_from, date_to])
 
@@ -712,7 +720,8 @@ def send_email_to_sales_with_his_target(request):
     <h1>Sales Report</h1>
     <p>From: {date_from}</p>
     <p>To: {date_to}</p>
-    <p>Total Orders: {orders_total_price} EGP</p>
+    <p>Total Orders: {orders.count()} EGP</p>
+    <p>Total Orders Price: {orders_total_price} EGP</p>
     <p>Your Total Commission: {user_commission} EGP</p>
     '''
 
