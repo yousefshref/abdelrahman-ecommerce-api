@@ -22,9 +22,9 @@ from email.mime.text import MIMEText
 
 
 
-# front_end_url = "http://localhost:5173"
+front_end_url = "http://localhost:5173"
 # front_end_url = "https://abdelrahman-ecommerce-front.vercel.app"
-front_end_url = "https://safe-zone.store"
+# front_end_url = "https://safe-zone.store"
 
 
 back_end_url = "http://127.0.0.1:8000/"
@@ -33,8 +33,8 @@ back_end_url = "http://127.0.0.1:8000/"
 
 
 def send_email(recipient_email, subject, message, content_type="plain"):
-    sender_email = "safezone61099@gmail.com"
-    sender_password = "vglh kjym kvlm pbng"
+    sender_email = "saffezone.store@gmail.com"
+    sender_password = "rxjk uhro oyac eqhe"
     try:
         # Set up the MIME
         email_msg = MIMEMultipart()

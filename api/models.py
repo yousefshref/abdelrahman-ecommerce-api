@@ -114,6 +114,7 @@ class OrderItem(models.Model):
 
 class HomePageImage(models.Model):
     image = models.ImageField(upload_to='images/')
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, null=True, blank=True)
 
 
 
