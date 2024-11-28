@@ -787,6 +787,15 @@ def create_home_page_image(request):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+@api_view(['PUT'])
+def update_home_page_image(request, pk):
+    image = get_object_or_404(HomePageImage, pk=pk)
+    serializer = HomePageImageSerializer(image, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 @api_view(['DELETE'])
 def delete_home_page_image(request, pk):
     image = get_object_or_404(HomePageImage, pk=pk)
