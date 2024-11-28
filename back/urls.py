@@ -68,6 +68,7 @@ urlpatterns = [
 
     path('home_page_images/', views.home_page_images),
     path('home_page_images/create/', views.create_home_page_image),
+    path('home_page_images/update/<int:pk>/', views.update_home_page_image),
     path('home_page_images/delete/<int:pk>/', views.delete_home_page_image),
 ]
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
