@@ -84,6 +84,8 @@ class Order(models.Model):
 
     is_fast_shipping = models.BooleanField(default=False)
 
+    payment_method = models.CharField(max_length=100, default='cash', choices=[('cash', 'cash'), ('card', 'card'), ('instapay-ewallet', 'instapay-ewallet')])
+
     status = models.CharField(max_length=100, choices=[('pending', 'Pending'), ('processing', 'Processing'), ('shipped', 'Shipped'), ('delivered', 'Delivered'), ('cancelled', 'Cancelled')], default='pending')
     tracking_code = models.CharField(max_length=100, null=True, blank=True)
     sales_who_added = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='sales', null=True, blank=True)
