@@ -577,6 +577,14 @@ def update_order(request, pk):
     order = get_object_or_404(Order, pk=pk)
     data = request.data.copy()
 
+    send_shipped_email = False
+    if data.get('status') == 'shipped' and order.status != 'shipped':
+        send_shipped_email = True
+
+    send_delivered_email = False
+    if data.get('status') == 'delivered' and order.status != 'delivered':
+        send_delivered_email = True
+
     # Update order fields (except order_items)
     serializer = OrderSerializer(order, data=data, partial=True)
     if serializer.is_valid():
@@ -633,6 +641,41 @@ def update_order(request, pk):
 
         # Save the order after processing items (if any)
         order = serializer.save()
+
+        # i want to check if the status data that comes from request is !== to the current status of the order and if it is then i want to send an email to the user
+        if order.status == 'delivered' and order.email and order.tracking_code and send_delivered_email:
+            send_email(
+                recipient_email=order.email,
+                subject="تم تسليم شحنتك",
+                message=f"""
+                    <h2>تم تسليم شحنتك</h2>
+                    <p style="margin-top: 15px">
+                        تم تسليم الشحنة للمندوب وترقب وصولها اليوم من الساعة 9 صباحا حتى الساعة 9 مساءً
+                    </p>
+                    <p style="margin-top: 10px">
+                        يمكنك تتبع الطلب من خلال هذا الكود {order.tracking_code}, من خلال <a href={front_end_url + '/orders/track/'}>هذه الصفحة</a>
+                    </p>
+                """,
+                content_type="html"
+            )
+            print('email sent', order.email)
+
+        if order.status == 'shipped' and order.email and order.tracking_code and send_shipped_email:
+            send_email(
+                recipient_email=order.email,
+                subject="تم شحن طلبك",
+                message=f"""
+                    <h2>تم تغيير حالة الطلب وسيتم توصيلة قريبا</h2>
+                    <p style="margin-top: 15px">
+                        تم شحن طلبك, ترقب مكالمة المندوب في اي وقت قريب
+                    </p>
+                    <p style="margin-top: 10px">
+                        يمكنك تتبع الطلب من خلال هذا الكود {order.tracking_code}, من خلال <a href=${front_end_url + '/orders/track/'}>هذه الصفحة</a>
+                    </p>
+                """,
+                content_type="html"
+            )
+            print('email sent', order.email)
         return Response(serializer.data, status=status.HTTP_200_OK)
     
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
