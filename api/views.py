@@ -293,7 +293,6 @@ def create_order(request):
             <table>
                 <thead>
                     <tr>
-                        <th>Image</th>
                         <th>Item</th>
                         <th>Quantity</th>
                         <th>Price</th>
@@ -311,9 +310,6 @@ def create_order(request):
                 price = item.product.price
             html_content += f"""
                     <tr>
-                        <td>
-                            <img src=f"{back_end_url}{item.product.image1.url}" />
-                        </td>
                         <td>{item.product.name}</td>
                         <td>{item.quantity}</td>
                         <td>{price * item.quantity} EGP</td>
