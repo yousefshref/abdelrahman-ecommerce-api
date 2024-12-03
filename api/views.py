@@ -260,7 +260,7 @@ def create_order(request):
             fast_shipping_cost = State.objects.get(id=order_obj.state.pk).fast_shipping_price
             order_total += fast_shipping_cost
 
-
+        
         # Construct the HTML content
         html_content = f"""
         <!DOCTYPE html>
@@ -312,7 +312,7 @@ def create_order(request):
             html_content += f"""
                     <tr>
                         <td>
-                            <img src=f"{back_end_url}media/{item.product.image1}" />
+                            <img src=f"{back_end_url}{item.product.image1.url}" />
                         </td>
                         <td>{item.product.name}</td>
                         <td>{item.quantity}</td>
