@@ -312,7 +312,7 @@ def create_order(request):
             html_content += f"""
                     <tr>
                         <td>
-                            <img src=f"{back_end_url}{item.product.image1}" />
+                            <img src=f"{back_end_url}media/{item.product.image1}" />
                         </td>
                         <td>{item.product.name}</td>
                         <td>{item.quantity}</td>
