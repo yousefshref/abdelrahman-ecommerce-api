@@ -205,6 +205,7 @@ from django.db import transaction
 def create_order(request):
     
     data = request.data.copy()
+
     
     if request.user.is_authenticated:
         data['user'] = request.user.id
@@ -215,6 +216,13 @@ def create_order(request):
     if serializer.is_valid():
         order = serializer.save()
 
+        send_shipped_email = False
+        if data.get('status') == 'shipped':
+            send_shipped_email = True
+
+        send_delivered_email = False
+        if data.get('status') == 'delivered':
+            send_delivered_email = True
 
         order_items = request.data['order_items']
         for item in order_items:
@@ -223,14 +231,14 @@ def create_order(request):
             if ser.is_valid():
                 ser.save()
 
-                product = get_object_or_404(Product, id=item['product'])
+                # product = get_object_or_404(Product, id=item['product'])
 
-                if int(product.stock) < int(item['quantity']):
-                    order.delete()
-                    return Response(f'هذا المنتج غير متوفر في المخزن: {product.name}, برجاء تخفيف العدد المطلوب او حذفه من السلة', status=status.HTTP_400_BAD_REQUEST)
-                else:
-                    product.stock -= int(item['quantity'])
-                    product.save()
+                # if int(product.stock) < int(item['quantity']):
+                #     order.delete()
+                #     return Response(f'هذا المنتج غير متوفر في المخزن: {product.name}, برجاء تخفيف العدد المطلوب او حذفه من السلة', status=status.HTTP_400_BAD_REQUEST)
+                # else:
+                #     product.stock -= int(item['quantity'])
+                #     product.save()
 
                     # return Response(ser.data, status=status.HTTP_201_CREATED)
             else:
@@ -333,6 +341,63 @@ def create_order(request):
                     message=html_content,
                     content_type="html"
                 )
+            
+
+        # i want to check if the status data that comes from request is !== to the current status of the order and if it is then i want to send an email to the user
+        if order.status == 'delivered' and order.email and order.tracking_code and send_delivered_email:
+            send_email(
+                recipient_email=order.email,
+                subject="تم تسليم شحنتك",
+                message=f"""
+                    <h2>تم تسليم شحنتك</h2>
+                    <p style="margin-top: 15px">
+                        تم تسليم الشحنة للمندوب وترقب وصولها اليوم من الساعة 9 صباحا حتى الساعة 9 مساءً
+                    </p>
+                    <p style="margin-top: 10px">
+                        يمكنك تتبع الطلب من خلال هذا الكود {order.tracking_code}, من خلال <a href={front_end_url + '/orders/track/'}>هذه الصفحة</a>
+                    </p>
+                """,
+                content_type="html"
+            )
+            print('email sent', order.email)
+
+        if order.status == 'shipped' and order.email and order.tracking_code and send_shipped_email:
+            send_email(
+                recipient_email=order.email,
+                subject="تم شحن طلبك",
+                message=f"""
+                    <h2>تم تغيير حالة الطلب وسيتم توصيلة قريبا</h2>
+                    <p style="margin-top: 15px">
+                        تم شحن طلبك, ترقب مكالمة المندوب في اي وقت قريب
+                    </p>
+                    <p style="margin-top: 10px">
+                        يمكنك تتبع الطلب من خلال هذا الكود {order.tracking_code}, من خلال <a href=${front_end_url + '/orders/track/'}>هذه الصفحة</a>
+                    </p>
+                """,
+                content_type="html"
+            )
+            print('email sent', order.email)
+
+        
+        # check the sales user if added new tracking code
+        if request.user.is_authenticated:
+            if request.user.is_shipping_employee:
+                order.sales_who_added = request.user
+                order.save()
+
+        
+        # calculate total order
+        # order_total = 0
+        # for item in order_items:
+        #     if item.product.offer_price:
+        #         order_total += item.product.offer_price * item.quantity
+        #     else:
+        #         order_total += item.product.price * item.quantity
+            
+        # order_total += order.state.shipping_price
+
+        # if order.is_fast_shipping:
+        #     order_total += order.state.fast_shipping_price
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -459,6 +524,7 @@ def get_sales_users(request):
 
 
 from django.db.models import Q
+from django.db.models import Sum, F
 
 @api_view(['GET'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
@@ -466,10 +532,30 @@ from django.db.models import Q
 def get_orders(request):
     orders = Order.objects.all().order_by('-id')
 
-    # sales orders
+    # Filter by sales_id if provided
     sales_id = request.GET.get('sales_id')
+    orders_total_commission = 0
+
     if sales_id:
         orders = orders.filter(sales_who_added__pk=sales_id)
+
+        user = CustomUser.objects.get(id=sales_id)
+        for order in orders:
+            if order.total:
+                orders_total_commission += int(order.total * user.commission / 100)
+
+
+        total_orders_prices = 0
+        for order in orders:
+            if order.total:
+                total_orders_prices += int(order.total)
+
+        response_data = {
+            'orders': OrderSerializer(orders, many=True).data,
+            'total_orders_prices': total_orders_prices,
+            'total_commission': orders_total_commission
+        }
+        return Response(response_data)
 
     # id and name and phone
     search = request.GET.get('search')
@@ -491,8 +577,19 @@ def get_orders(request):
     if to_date:
         orders = orders.filter(created_at__lte=to_date)
 
-    serializer = OrderSerializer(orders, many=True)
-    return Response(serializer.data)
+
+    total_orders_prices = 0
+
+    for order in orders:
+        if order.total:
+            total_orders_prices += int(order.total)
+
+    data = {
+        'orders': OrderSerializer(orders, many=True).data,
+        'total_orders_prices': total_orders_prices,
+    }
+
+    return Response(data)
 
 
 @api_view(['GET'])
@@ -580,6 +677,7 @@ def update_order(request, pk):
     send_delivered_email = False
     if data.get('status') == 'delivered' and order.status != 'delivered':
         send_delivered_email = True
+
 
     # Update order fields (except order_items)
     serializer = OrderSerializer(order, data=data, partial=True)
@@ -672,6 +770,22 @@ def update_order(request, pk):
                 content_type="html"
             )
             print('email sent', order.email)
+        
+
+        # calculate total order
+        order_items = order.items.all()
+        order_total = 0
+        for item in order_items:
+            if item.product.offer_price:
+                order_total += item.product.offer_price * item.quantity
+            else:
+                order_total += item.product.price * item.quantity
+            
+        order_total += order.state.shipping_price
+
+        if order.is_fast_shipping:
+            order_total += order.state.fast_shipping_price
+
         return Response(serializer.data, status=status.HTTP_200_OK)
     
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

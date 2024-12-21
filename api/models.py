@@ -1,10 +1,8 @@
 from django.db import models
 
-
 from django.contrib.auth.models import AbstractUser
 
 
-from django.utils.timezone import now  # Import this to get the current time
 
 
 class CustomUser(AbstractUser):
@@ -97,10 +95,36 @@ class Order(models.Model):
     def __str__(self):
         return str(self.pk) + " " + str(self.name)
 
+    def get_total_price(self):
+        total = 0
+        for item in self.items.all():
+            if item.product.offer_price:
+                total += item.product.offer_price * item.quantity
+            else:
+                total += item.product.price * item.quantity
+        
+        total += self.state.shipping_price
+
+        if self.is_fast_shipping and self.state.fast_shipping_price:
+            total += self.state.fast_shipping_price
+
+        self.total = total
     
     def save(self, *args, **kwargs):
+        # super().save(*args, **kwargs)
+        if self.pk:
+            if self.status != "cancelled":
+                self.get_total_price()
+            
+            if self.status == "cancelled":
+                for item in self.items.all():
+                    item.product.stock += item.quantity
+                    item.quantity = 0
+                    item.save_base()
+                    item.product.save()
+        else:
+            print("new order")
         super().save(*args, **kwargs)
-
                 
 
 
@@ -111,28 +135,43 @@ class OrderItem(models.Model):
 
     def __str__(self):
         return self.product.name
+    
+    
+    def save(self, *args, **kwargs):
+        # Handle stock adjustments
+        if self.pk:  # If the OrderItem exists
+            old_quantity = OrderItem.objects.get(pk=self.pk).quantity
+            quantity_change = self.quantity - old_quantity
+            self.product.stock -= quantity_change
+        else:  # If this is a new OrderItem
+            self.product.stock -= self.quantity
+        
+        if self.product.stock < 0:
+            raise ValueError("Not enough stock for this product!")
+        
+        self.product.save()
+        super().save(*args, **kwargs)
+        self.order.save()
+    
+    def delete(self, *args, **kwargs):
+        # Return the stock when the OrderItem is deleted
+        self.product.stock += self.quantity
+        self.product.save()
+        super().delete(*args, **kwargs)
 
+
+from django.db.models.signals import pre_delete
+from django.dispatch import receiver
+
+@receiver(pre_delete, sender=OrderItem)
+def restore_stock_on_delete(sender, instance, **kwargs):
+    instance.product.stock += instance.quantity
+    instance.product.save()
 
 
 class HomePageImage(models.Model):
     image = models.ImageField(upload_to='images/')
     product = models.ForeignKey(Product, on_delete=models.CASCADE, null=True, blank=True)
 
-
-
-
-from django.db.models.signals import post_save
-from django.dispatch import receiver
-
-@receiver(post_save, sender=Order)
-def update_stock_on_cancel(sender, instance, **kwargs):
-    """
-    Adjust product stock when an order's status changes to 'cancelled'.
-    """
-    if instance.status == 'cancelled':
-        # Iterate through the items in the order
-        for item in instance.items.all():
-            item.product.stock += item.quantity
-            item.product.save()
 
 
