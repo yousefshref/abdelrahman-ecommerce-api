@@ -441,12 +441,14 @@ def delete_category(request, pk):
     category.delete()
     return Response(status=status.HTTP_204_NO_CONTENT)
 
+
+
 @api_view(['POST'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticated])
 def create_product(request):
     if request.method == 'POST':
-        data = request.data.copy()
+        data = request.data
         data['user'] = request.user.id
         serializer = ProductSerializer(data=data)
         if serializer.is_valid():
@@ -457,7 +459,6 @@ def create_product(request):
 
             if isinstance(related_products, str):
                 related_products = list(map(int, filter(None, related_products.split(','))))
-
             
 
             if related_products:
