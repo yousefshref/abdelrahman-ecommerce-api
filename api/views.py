@@ -10,6 +10,10 @@ from rest_framework.authtoken.models import Token
 from .serializers import UserSerializer, ProductSerializer, StateSerializer, CategorySerializer, OrderSerializer, OrderItemSerializer, HomePageImageSerializer
 from .models import CustomUser, Product, State, Order, OrderItem, Category, HomePageImage
 
+from django.conf import settings
+
+from google.oauth2 import id_token
+from google.auth.transport import requests
 
 from datetime import timedelta
 from django.utils.timezone import now
@@ -67,6 +71,31 @@ def send_email_function_api(request):
     data = request.data.copy()
     send_email(data['recipient_email'], data['subject'], data['message'], data['content_type'])
     return Response("Email sent successfully!", status=status.HTTP_200_OK)
+
+
+
+@api_view(['POST'])
+def google_auth_view(request):
+    token = request.data.get("token")
+    try:
+        # Verify the token with Google's API
+        idinfo = id_token.verify_oauth2_token(token, requests.Request(), settings.GOOGLE_CLIENT_ID)
+
+        # Extract user info
+        email = idinfo.get("email")
+        name = idinfo.get("name")
+
+        # Get or create the user
+        user, created = CustomUser.objects.get_or_create(email=email, defaults={"username": name})
+    
+        # Get or create the token
+        token, _ = Token.objects.get_or_create(user=user)
+
+        # Return the user or a token for further sessions
+        return Response({"message": "Authenticated", "user": UserSerializer(user).data, "token": token.key}, status=status.HTTP_200_OK)
+
+    except ValueError as e:
+        return Response({"error": "Invalid Token"}, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['POST'])
