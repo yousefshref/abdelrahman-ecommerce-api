@@ -26,6 +26,7 @@ from django.conf.urls.static import static
 urlpatterns = [
     path('admin/', admin.site.urls),
 
+    path('google-auth/', views.google_auth_view),
     path('register/', views.signup),
     path('login/', views.login),
 

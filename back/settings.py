@@ -29,6 +29,9 @@ DEBUG = True
 ALLOWED_HOSTS = ["*"]
 
 
+GOOGLE_CLIENT_ID = "113071870770-6v09dj39vjveg3etc2i1r2ikj9aqsjn0.apps.googleusercontent.com"
+
+
 # Application definition
 
 INSTALLED_APPS = [
