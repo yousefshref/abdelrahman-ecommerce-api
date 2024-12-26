@@ -555,6 +555,12 @@ def get_sales_users(request):
 
 from django.db.models import Q
 from django.db.models import Sum, F
+from rest_framework.pagination import PageNumberPagination
+
+class StandardResultsSetPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100
 
 @api_view(['GET'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
@@ -574,18 +580,20 @@ def get_orders(request):
             if order.total:
                 orders_total_commission += int(order.total * user.commission / 100)
 
-
         total_orders_prices = 0
         for order in orders:
             if order.total:
                 total_orders_prices += int(order.total)
 
+        paginator = StandardResultsSetPagination()
+        paginated_orders = paginator.paginate_queryset(orders, request)
+
         response_data = {
-            'orders': OrderSerializer(orders, many=True).data,
+            'orders': OrderSerializer(paginated_orders, many=True).data,
             'total_orders_prices': total_orders_prices,
             'total_commission': orders_total_commission
         }
-        return Response(response_data)
+        return paginator.get_paginated_response(response_data)
 
     # id and name and phone
     search = request.GET.get('search')
@@ -607,19 +615,20 @@ def get_orders(request):
     if to_date:
         orders = orders.filter(created_at__lte=to_date)
 
-
     total_orders_prices = 0
-
     for order in orders:
         if order.total:
             total_orders_prices += int(order.total)
 
+    paginator = StandardResultsSetPagination()
+    paginated_orders = paginator.paginate_queryset(orders, request)
+
     data = {
-        'orders': OrderSerializer(orders, many=True).data,
+        'orders': OrderSerializer(paginated_orders, many=True).data,
         'total_orders_prices': total_orders_prices,
     }
 
-    return Response(data)
+    return paginator.get_paginated_response(data)
 
 
 @api_view(['GET'])
