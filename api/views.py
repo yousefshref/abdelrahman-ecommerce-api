@@ -4,6 +4,9 @@ from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnl
 from rest_framework.response import Response
 from rest_framework import status
 
+from django.core.cache import cache
+
+
 from django.shortcuts import get_object_or_404
 from rest_framework.authtoken.models import Token
 
@@ -112,9 +115,13 @@ def signup(request):
 
 @api_view(['POST'])
 def login(request):
-    user = get_object_or_404(CustomUser, username=request.data['username'])
-    if not user.check_password(request.data['password']):
-        return Response("missing user", status=status.HTTP_404_NOT_FOUND)
+    username = request.data.get('username')
+    password = request.data.get('password')
+
+    user = CustomUser.objects.filter(Q(username=username) | Q(email=username)).first()
+    if user is None or not user.check_password(password):
+        return Response("Invalid credentials", status=status.HTTP_404_NOT_FOUND)
+
     token, created = Token.objects.get_or_create(user=user)
     serializer = UserSerializer(user)
     return Response({'token': token.key, 'user': serializer.data}, status=status.HTTP_200_OK)
@@ -555,87 +562,132 @@ def get_sales_users(request):
 
 from django.db.models import Q
 from django.db.models import Sum, F
-from rest_framework.pagination import PageNumberPagination
 
-class StandardResultsSetPagination(PageNumberPagination):
-    page_size = 10
-    page_size_query_param = 'page_size'
-    max_page_size = 100
+def get_cached_orders():
+    version = cache.get('order_version', 1)
+    orders = cache.get(f'all_orders_v{version}')
+    if not orders:
+        orders = list(Order.objects.all().order_by('-id'))
+        cache.set(f'all_orders_v{version}', orders, timeout=60 * 60)  # Cache for 1 hour
+    return orders
 
 @api_view(['GET'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticated])
 def get_orders(request):
-    orders = Order.objects.all().order_by('-id')
+    orders = get_cached_orders()
+
+    # chaeck if the user is not admin
+    user = request.user
+    if not user.is_superuser:
+        orders = [order for order in orders if order.user.pk == user.id]
 
     # Filter by sales_id if provided
     sales_id = request.GET.get('sales_id')
+
     orders_total_commission = 0
+    total_orders_prices = 0
 
     if sales_id:
-        orders = orders.filter(sales_who_added__pk=sales_id)
+        orders = [order for order in orders if order.sales_who_added_id == int(sales_id)]
 
         user = CustomUser.objects.get(id=sales_id)
         for order in orders:
             if order.total:
                 orders_total_commission += int(order.total * user.commission / 100)
 
-        total_orders_prices = 0
         for order in orders:
             if order.total:
                 total_orders_prices += int(order.total)
 
-        paginator = StandardResultsSetPagination()
-        paginated_orders = paginator.paginate_queryset(orders, request)
-
-        response_data = {
-            'orders': OrderSerializer(paginated_orders, many=True).data,
-            'total_orders_prices': total_orders_prices,
-            'total_commission': orders_total_commission
-        }
-        return paginator.get_paginated_response(response_data)
-
     # id and name and phone
     search = request.GET.get('search')
     if search:
-        orders = orders.filter(Q(id__icontains=search) | Q(name__icontains=search) | Q(phone_number__icontains=search))
+        orders = [order for order in orders if search.lower() in str(order.id).lower() or search.lower() in order.name.lower() or search.lower() in order.phone_number.lower()]
 
     # status
     status = request.GET.get('status')
     if status:
-        orders = orders.filter(status=status)
+        orders = [order for order in orders if order.status == status]
 
-    # from 
-    from_date = request.GET.get('from')
-    if from_date:
-        orders = orders.filter(created_at__gte=from_date)
 
-    # to
-    to_date = request.GET.get('to')
-    if to_date:
-        orders = orders.filter(created_at__lte=to_date)
+    if not sales_id:
+        for order in orders:
+            if order.total:
+                total_orders_prices += int(order.total)
 
-    total_orders_prices = 0
-    for order in orders:
-        if order.total:
-            total_orders_prices += int(order.total)
-
-    paginator = StandardResultsSetPagination()
-    paginated_orders = paginator.paginate_queryset(orders, request)
-
+    # Prepare response data
     data = {
-        'orders': OrderSerializer(paginated_orders, many=True).data,
+        'orders': OrderSerializer(orders, many=True).data,
         'total_orders_prices': total_orders_prices,
+        'total_commission': orders_total_commission
     }
 
-    return paginator.get_paginated_response(data)
+    return Response(data)
+
+
+
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def get_latest_client_orders(request):
+    user = request.user
+
+    if not user.is_authenticated:
+        return Response({"error": "You are not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
+    
+    orders = get_cached_orders()
+    orders = [order for order in orders if order.user.pk == user.id]
+    seven_days_ago = now() - timedelta(days=7)
+    orders = [order for order in orders if order.created_at >= seven_days_ago]
+    serializer = OrderSerializer(orders, many=True)
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def deliverd_orders_client(request):
+    user = request.user
+
+    if not user.is_authenticated:
+        return Response({"error": "You are not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
+    
+    orders = Order.objects.filter(status='delivered', user=user)
+    serializer = OrderSerializer(orders, many=True)
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def cancelled_orders_client(request):
+    user = request.user
+
+    if not user.is_authenticated:
+        return Response({"error": "You are not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
+    
+    orders = Order.objects.filter(status='cancelled', user=user)
+    serializer = OrderSerializer(orders, many=True)
+    return Response(serializer.data)
+
 
 
 @api_view(['GET'])
 def get_order(request, pk):
     order = get_object_or_404(Order, pk=pk)
-    serializer = OrderSerializer(order)
-    return Response(serializer.data)
+
+    fast_shipping = 0
+    if order.is_fast_shipping:
+        fast_shipping = order.state.fast_shipping_price
+    data = {
+        "order": OrderSerializer(order).data,
+        "total_price": order.total,
+        "shipping_price": order.state.shipping_price,
+        "fast_shipping": fast_shipping,
+        "order_items": OrderItemSerializer(order.items.all(), many=True).data
+    }
+    return Response(data, status=status.HTTP_200_OK)
 
 # @api_view(['PUT'])
 # @authentication_classes([SessionAuthentication, TokenAuthentication])
@@ -884,6 +936,7 @@ def update_user_password(request, pk):
 
 
 
+from django.db.models import F, Q
 
 
 @api_view(['POST'])
@@ -894,9 +947,12 @@ def send_email_to_sales_with_his_target(request):
     user = CustomUser.objects.get(id=request.data['user_id'])
 
     # get his orders
-    orders = Order.objects.filter(sales_who_added=user, status='delivered')
-    if date_from and date_to:
-        orders = orders.filter(created_at__range=[date_from, date_to])
+    # orders = Order.objects.filter(sales_who_added=user, created_at__range=[date_from, date_to])
+    orders = Order.objects.filter(Q(created_at__range=[date_from, date_to]))
+    order.filter(
+        Q(status='shipped') | Q(status='delivered')
+    )
+    orders.filter(sales_who_added=user)
 
     # get his total orders price
     orders_total_price = 0
@@ -912,7 +968,7 @@ def send_email_to_sales_with_his_target(request):
     <h1>Sales Report</h1>
     <p>From: {date_from}</p>
     <p>To: {date_to}</p>
-    <p>Total Orders: {orders.count()} EGP</p>
+    <p>Total Orders: {orders.count()}</p>
     <p>Total Orders Price: {orders_total_price} EGP</p>
     <p>Your Total Commission: {user_commission} EGP</p>
     '''

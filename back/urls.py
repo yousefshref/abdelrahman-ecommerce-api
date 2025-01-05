@@ -61,6 +61,9 @@ urlpatterns = [
 
     path('orders/create/', views.create_order),
     path('orders/', views.get_orders),
+    path('orders/latest/', views.get_latest_client_orders),
+    path('orders/deliverd/', views.deliverd_orders_client),
+    path('orders/cancelled/', views.cancelled_orders_client),
     path('orders/<int:pk>/', views.get_order),
     path('orders/update/<int:pk>/', views.update_order),
     path('orders/delete/<int:pk>/', views.delete_order),

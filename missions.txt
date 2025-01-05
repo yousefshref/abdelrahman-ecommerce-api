@@ -1,5 +1,2 @@
-- create order                                                  done
-- admin login page                                              done
-- crud products
-- crud orders as an admin
-- crud staff and manage their own permissions
+- created the sales email
+- created the image

@@ -118,14 +118,15 @@ class Order(models.Model):
             
             if self.status == "cancelled":
                 for item in self.items.all():
-                    item.product.stock += item.quantity
+                    item.product.stock += int(item.quantity)
                     item.quantity = 0
                     item.save_base()
                     item.product.save()
         else:
             print("new order")
         super().save(*args, **kwargs)
-                
+
+
 
 
 class OrderItem(models.Model):
@@ -141,10 +142,10 @@ class OrderItem(models.Model):
         # Handle stock adjustments
         if self.pk:  # If the OrderItem exists
             old_quantity = OrderItem.objects.get(pk=self.pk).quantity
-            quantity_change = self.quantity - old_quantity
-            self.product.stock -= quantity_change
+            quantity_change = int(self.quantity) - int(old_quantity)
+            self.product.stock -= int(quantity_change)
         else:  # If this is a new OrderItem
-            self.product.stock -= self.quantity
+            self.product.stock -= int(self.quantity)
         
         if self.product.stock < 0:
             raise ValueError("Not enough stock for this product!")
@@ -160,14 +161,6 @@ class OrderItem(models.Model):
         super().delete(*args, **kwargs)
 
 
-from django.db.models.signals import pre_delete
-from django.dispatch import receiver
-
-@receiver(pre_delete, sender=OrderItem)
-def restore_stock_on_delete(sender, instance, **kwargs):
-    instance.product.stock += instance.quantity
-    instance.product.save()
-
 
 class HomePageImage(models.Model):
     image = models.ImageField(upload_to='images/')
@@ -175,3 +168,22 @@ class HomePageImage(models.Model):
 
 
 
+
+from django.db.models.signals import pre_delete
+from django.db.models.signals import post_save, post_delete
+from django.dispatch import receiver
+from django.core.cache import cache
+
+
+
+@receiver(post_save, sender=Order)
+@receiver(post_delete, sender=Order)
+def update_order_version(sender, instance, **kwargs):
+    version = cache.get('order_version', 1)
+    cache.set('order_version', version + 1)
+
+
+@receiver(pre_delete, sender=OrderItem)
+def restore_stock_on_delete(sender, instance, **kwargs):
+    instance.product.stock += instance.quantity
+    instance.product.save()
