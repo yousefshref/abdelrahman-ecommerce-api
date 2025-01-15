@@ -946,13 +946,13 @@ def send_email_to_sales_with_his_target(request):
 
     user = CustomUser.objects.get(id=request.data['user_id'])
 
-    # get his orders
-    # orders = Order.objects.filter(sales_who_added=user, created_at__range=[date_from, date_to])
-    orders = Order.objects.filter(Q(created_at__range=[date_from, date_to]))
-    order.filter(
-        Q(status='shipped') | Q(status='delivered')
-    )
-    orders.filter(sales_who_added=user)
+
+    orders = Order.objects.filter(
+        Q(created_at__range=[date_from, date_to]) & 
+        Q(sales_who_added__pk=user.pk) & 
+        Q(status='delivered')
+    ).order_by('-created_at')
+
 
     # get his total orders price
     orders_total_price = 0
