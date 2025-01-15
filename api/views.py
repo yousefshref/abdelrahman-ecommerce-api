@@ -575,12 +575,16 @@ def get_cached_orders():
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticated])
 def get_orders(request):
-    orders = get_cached_orders()
+    orders = Order.objects.all().order_by('-id')
 
     # chaeck if the user is not admin
     user = request.user
-    if not user.is_superuser:
-        orders = [order for order in orders if order.user.pk == user.id]
+
+    if user.is_staff == False:
+        orders = orders.filter(user=user)
+
+    # if user.is_shipping_employee == False:
+    #     orders = orders.filter(user=user)
 
     # Filter by sales_id if provided
     sales_id = request.GET.get('sales_id')
@@ -589,7 +593,7 @@ def get_orders(request):
     total_orders_prices = 0
 
     if sales_id:
-        orders = [order for order in orders if order.sales_who_added_id == int(sales_id)]
+        orders = orders.filter(sales_who_added__pk=sales_id)
 
         user = CustomUser.objects.get(id=sales_id)
         for order in orders:
@@ -603,12 +607,14 @@ def get_orders(request):
     # id and name and phone
     search = request.GET.get('search')
     if search:
-        orders = [order for order in orders if search.lower() in str(order.id).lower() or search.lower() in order.name.lower() or search.lower() in order.phone_number.lower()]
+        # orders = [order for order in orders if search.lower() in str(order.id).lower() or search.lower() in order.name.lower() or search.lower() in order.phone_number.lower()]
+        orders = orders.filter(Q(id__icontains=search) | Q(name__icontains=search) | Q(phone_number__icontains=search))
 
     # status
     status = request.GET.get('status')
     if status:
-        orders = [order for order in orders if order.status == status]
+        # orders = [order for order in orders if order.status == status]
+        orders = orders.filter(status=status)
 
 
     if not sales_id:
@@ -946,7 +952,6 @@ def send_email_to_sales_with_his_target(request):
 
     user = CustomUser.objects.get(id=request.data['user_id'])
 
-
     orders = Order.objects.filter(
         Q(created_at__range=[date_from, date_to]) & 
         Q(sales_who_added__pk=user.pk) & 
@@ -962,15 +967,19 @@ def send_email_to_sales_with_his_target(request):
     # user total commission
     user_commission = orders_total_price * (user.commission / 100)
 
+    order_length = 0
+    for order in orders:
+        order_length += 1
+
     # send email to sales
     subject = 'Sales Report'
     message = f'''
-    <h1>Sales Report</h1>
-    <p>From: {date_from}</p>
-    <p>To: {date_to}</p>
-    <p>Total Orders: {orders.count()}</p>
-    <p>Total Orders Price: {orders_total_price} EGP</p>
-    <p>Your Total Commission: {user_commission} EGP</p>
+        <h1>Sales Report</h1>
+        <p>From: {date_from}</p>
+        <p>To: {date_to}</p>
+        <p>Total Orders: {order_length}</p>
+        <p>Total Orders Price: {orders_total_price} EGP</p>
+        <p>Your Total Commission: {user_commission} EGP</p>
     '''
 
     send_email(
