@@ -1,0 +1,3 @@
+| safezone           | user          | host      |
++--------------------+---------------+-----------+
+| safezone           | abdelrahman   | localhost
