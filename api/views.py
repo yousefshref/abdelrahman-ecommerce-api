@@ -236,6 +236,7 @@ from django.db import transaction
 
 
 @api_view(['POST'])
+# @authentication_classes([TokenAuthentication, SessionAuthentication])
 @authentication_classes([TokenAuthentication])
 @permission_classes([AllowAny])
 def create_order(request):
@@ -631,12 +632,102 @@ from django.db.models import Sum, F
 #     return Response(data)
 
 
+# from django.core.cache import cache
+# from django.db.models import Q
+# from rest_framework.response import Response
+# from rest_framework.decorators import api_view, authentication_classes, permission_classes
+# from rest_framework.authentication import SessionAuthentication, TokenAuthentication
+# from rest_framework.permissions import IsAuthenticated
+
+# def get_cached_orders(version, user, sales_id=None, search=None, status=None):
+#     cache_key = f'all_orders_v{version}_user{user.id}'
+    
+#     # Cache by sales_id, search, and status as well to handle different filtering
+#     if sales_id:
+#         cache_key += f'_sales{sales_id}'
+#     if search:
+#         cache_key += f'_search{search}'
+#     if status:
+#         cache_key += f'_status{status}'
+    
+#     orders = cache.get(cache_key)
+    
+#     if not orders:
+#         orders = Order.objects.all().order_by('-id')
+
+#         # If the user is not an admin, filter orders by user
+#         if not user.is_staff:
+#             orders = orders.filter(user=user)
+
+#         # Filter by sales_id if provided
+#         if sales_id:
+#             orders = orders.filter(sales_who_added__pk=sales_id)
+
+#         # Apply search filter
+#         if search:
+#             orders = orders.filter(Q(id__icontains=search) | Q(name__icontains=search) | Q(phone_number__icontains=search))
+
+#         # Apply status filter
+#         if status:
+#             orders = orders.filter(status=status)
+
+#         # Cache the orders with a timeout of 1 hour
+#         cache.set(cache_key, list(orders), timeout=60 * 60)
+
+#     return orders
+
+# @api_view(['GET'])
+# @authentication_classes([SessionAuthentication, TokenAuthentication])
+# @permission_classes([IsAuthenticated])
+# def get_orders(request):
+#     user = request.user
+#     version = cache.get('order_version', 1)  # You can update this version number when the orders data changes
+    
+#     # Fetch cached orders based on filters
+#     sales_id = request.GET.get('sales_id')
+#     search = request.GET.get('search')
+#     status = request.GET.get('status')
+
+#     # Get the cached orders or fetch fresh ones if not cached
+#     orders = get_cached_orders(version, user, sales_id, search, status)
+    
+#     # Calculate the total commission and order prices
+#     orders_total_commission = 0
+#     total_orders_prices = 0
+
+#     if sales_id:
+#         user = CustomUser.objects.get(id=sales_id)
+#         for order in orders:
+#             if order.total:
+#                 orders_total_commission += int(order.total * user.commission / 100)
+
+#     for order in orders:
+#         if order.total:
+#             total_orders_prices += int(order.total)
+
+#     # Prepare response data
+#     data = {
+#         'orders': OrderSerializer(orders, many=True).data,
+#         'total_orders_prices': total_orders_prices,
+#         'total_commission': orders_total_commission
+#     }
+
+#     return Response(data)
+
+
 from django.core.cache import cache
 from django.db.models import Q
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.pagination import PageNumberPagination  # Import pagination class
+
+# Define a custom pagination class
+class OrdersPagination(PageNumberPagination):
+    page_size = 10  # Default number of orders per page
+    page_size_query_param = 'page_size'  # Allow clients to set the page size
+    max_page_size = 100  # Maximum page size limit
 
 def get_cached_orders(version, user, sales_id=None, search=None, status=None):
     cache_key = f'all_orders_v{version}_user{user.id}'
@@ -689,29 +780,36 @@ def get_orders(request):
 
     # Get the cached orders or fetch fresh ones if not cached
     orders = get_cached_orders(version, user, sales_id, search, status)
-    
+
+    # Initialize pagination
+    paginator = OrdersPagination()
+    paginated_orders = paginator.paginate_queryset(orders, request)
+
     # Calculate the total commission and order prices
     orders_total_commission = 0
     total_orders_prices = 0
 
     if sales_id:
-        user = CustomUser.objects.get(id=sales_id)
-        for order in orders:
+        user = CustomUser .objects.get(id=sales_id)
+        for order in paginated_orders:
             if order.total:
                 orders_total_commission += int(order.total * user.commission / 100)
 
-    for order in orders:
+    for order in paginated_orders:
         if order.total:
             total_orders_prices += int(order.total)
 
     # Prepare response data
     data = {
-        'orders': OrderSerializer(orders, many=True).data,
+        'orders': OrderSerializer(paginated_orders, many=True).data,
         'total_orders_prices': total_orders_prices,
-        'total_commission': orders_total_commission
+        'total_commission': orders_total_commission,
+        'count': paginator.page.paginator.count,  # Total number of orders
+        'next': paginator.get_next_link(),  # URL for the next page
+        'previous': paginator.get_previous_link()  # URL for the previous page
     }
 
-    return Response(data)
+    return paginator.get_paginated_response(data)
 
 
 
