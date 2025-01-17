@@ -1,2 +1,0 @@
-- created the sales email
-- created the image
