@@ -236,13 +236,12 @@ from django.db import transaction
 
 
 @api_view(['POST'])
-@authentication_classes([SessionAuthentication, TokenAuthentication])
+@authentication_classes([TokenAuthentication])
 @permission_classes([AllowAny])
 def create_order(request):
     
     data = request.data.copy()
 
-    
     if request.user.is_authenticated:
         data['user'] = request.user.id
     else:
