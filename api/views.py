@@ -563,64 +563,147 @@ def get_sales_users(request):
 from django.db.models import Q
 from django.db.models import Sum, F
 
-def get_cached_orders():
-    version = cache.get('order_version', 1)
-    orders = cache.get(f'all_orders_v{version}')
+# def get_cached_orders():
+#     version = cache.get('order_version', 1)
+#     orders = cache.get(f'all_orders_v{version}')
+#     if not orders:
+#         orders = list(Order.objects.all().order_by('-id'))
+#         cache.set(f'all_orders_v{version}', orders, timeout=60 * 60)  # Cache for 1 hour
+#     return orders
+
+# @api_view(['GET'])
+# @authentication_classes([SessionAuthentication, TokenAuthentication])
+# @permission_classes([IsAuthenticated])
+# def get_orders(request):
+#     orders = Order.objects.all().order_by('-id')
+
+#     # chaeck if the user is not admin
+#     user = request.user
+
+#     if user.is_staff == False:
+#         orders = orders.filter(user=user)
+
+#     # if user.is_shipping_employee == False:
+#     #     orders = orders.filter(user=user)
+
+#     # Filter by sales_id if provided
+#     sales_id = request.GET.get('sales_id')
+
+#     orders_total_commission = 0
+#     total_orders_prices = 0
+
+#     if sales_id:
+#         orders = orders.filter(sales_who_added__pk=sales_id)
+
+#         user = CustomUser.objects.get(id=sales_id)
+#         for order in orders:
+#             if order.total:
+#                 orders_total_commission += int(order.total * user.commission / 100)
+
+#         for order in orders:
+#             if order.total:
+#                 total_orders_prices += int(order.total)
+
+#     # id and name and phone
+#     search = request.GET.get('search')
+#     if search:
+#         # orders = [order for order in orders if search.lower() in str(order.id).lower() or search.lower() in order.name.lower() or search.lower() in order.phone_number.lower()]
+#         orders = orders.filter(Q(id__icontains=search) | Q(name__icontains=search) | Q(phone_number__icontains=search))
+
+#     # status
+#     status = request.GET.get('status')
+#     if status:
+#         # orders = [order for order in orders if order.status == status]
+#         orders = orders.filter(status=status)
+
+
+#     if not sales_id:
+#         for order in orders:
+#             if order.total:
+#                 total_orders_prices += int(order.total)
+
+#     # Prepare response data
+#     data = {
+#         'orders': OrderSerializer(orders, many=True).data,
+#         'total_orders_prices': total_orders_prices,
+#         'total_commission': orders_total_commission
+#     }
+
+#     return Response(data)
+
+
+from django.core.cache import cache
+from django.db.models import Q
+from rest_framework.response import Response
+from rest_framework.decorators import api_view, authentication_classes, permission_classes
+from rest_framework.authentication import SessionAuthentication, TokenAuthentication
+from rest_framework.permissions import IsAuthenticated
+
+def get_cached_orders(version, user, sales_id=None, search=None, status=None):
+    cache_key = f'all_orders_v{version}_user{user.id}'
+    
+    # Cache by sales_id, search, and status as well to handle different filtering
+    if sales_id:
+        cache_key += f'_sales{sales_id}'
+    if search:
+        cache_key += f'_search{search}'
+    if status:
+        cache_key += f'_status{status}'
+    
+    orders = cache.get(cache_key)
+    
     if not orders:
-        orders = list(Order.objects.all().order_by('-id'))
-        cache.set(f'all_orders_v{version}', orders, timeout=60 * 60)  # Cache for 1 hour
+        orders = Order.objects.all().order_by('-id')
+
+        # If the user is not an admin, filter orders by user
+        if not user.is_staff:
+            orders = orders.filter(user=user)
+
+        # Filter by sales_id if provided
+        if sales_id:
+            orders = orders.filter(sales_who_added__pk=sales_id)
+
+        # Apply search filter
+        if search:
+            orders = orders.filter(Q(id__icontains=search) | Q(name__icontains=search) | Q(phone_number__icontains=search))
+
+        # Apply status filter
+        if status:
+            orders = orders.filter(status=status)
+
+        # Cache the orders with a timeout of 1 hour
+        cache.set(cache_key, list(orders), timeout=60 * 60)
+
     return orders
 
 @api_view(['GET'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticated])
 def get_orders(request):
-    orders = Order.objects.all().order_by('-id')
-
-    # chaeck if the user is not admin
     user = request.user
-
-    if user.is_staff == False:
-        orders = orders.filter(user=user)
-
-    # if user.is_shipping_employee == False:
-    #     orders = orders.filter(user=user)
-
-    # Filter by sales_id if provided
+    version = cache.get('order_version', 1)  # You can update this version number when the orders data changes
+    
+    # Fetch cached orders based on filters
     sales_id = request.GET.get('sales_id')
+    search = request.GET.get('search')
+    status = request.GET.get('status')
 
+    # Get the cached orders or fetch fresh ones if not cached
+    orders = get_cached_orders(version, user, sales_id, search, status)
+    
+    # Calculate the total commission and order prices
     orders_total_commission = 0
     total_orders_prices = 0
 
     if sales_id:
-        orders = orders.filter(sales_who_added__pk=sales_id)
-
         user = CustomUser.objects.get(id=sales_id)
         for order in orders:
             if order.total:
                 orders_total_commission += int(order.total * user.commission / 100)
 
-        for order in orders:
-            if order.total:
-                total_orders_prices += int(order.total)
-
-    # id and name and phone
-    search = request.GET.get('search')
-    if search:
-        # orders = [order for order in orders if search.lower() in str(order.id).lower() or search.lower() in order.name.lower() or search.lower() in order.phone_number.lower()]
-        orders = orders.filter(Q(id__icontains=search) | Q(name__icontains=search) | Q(phone_number__icontains=search))
-
-    # status
-    status = request.GET.get('status')
-    if status:
-        # orders = [order for order in orders if order.status == status]
-        orders = orders.filter(status=status)
-
-
-    if not sales_id:
-        for order in orders:
-            if order.total:
-                total_orders_prices += int(order.total)
+    for order in orders:
+        if order.total:
+            total_orders_prices += int(order.total)
 
     # Prepare response data
     data = {

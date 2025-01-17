@@ -176,11 +176,29 @@ from django.core.cache import cache
 
 
 
+# Cache version key
+CACHE_VERSION_KEY = 'order_version'
+
 @receiver(post_save, sender=Order)
+def update_order_version_on_save(sender, instance, created, **kwargs):
+    # Increment the cache version whenever an order is saved (created or updated)
+    current_version = cache.get(CACHE_VERSION_KEY, 1)  # Default to 1 if not set
+    new_version = current_version + 1
+    cache.set(CACHE_VERSION_KEY, new_version)  # Update the cache version
+
+    if created:
+        print(f"Order {instance.id} created, updated cache version to {new_version}")
+    else:
+        print(f"Order {instance.id} updated, updated cache version to {new_version}")
+
+
 @receiver(post_delete, sender=Order)
-def update_order_version(sender, instance, **kwargs):
-    version = cache.get('order_version', 1)
-    cache.set('order_version', version + 1)
+def update_order_version_on_delete(sender, instance, **kwargs):
+    # Increment the cache version when an order is deleted
+    current_version = cache.get(CACHE_VERSION_KEY, 1)  # Default to 1 if not set
+    new_version = current_version + 1
+    cache.set(CACHE_VERSION_KEY, new_version)  # Update the cache version
+    print(f"Order {instance.id} deleted, updated cache version to {new_version}")
 
 
 @receiver(pre_delete, sender=OrderItem)

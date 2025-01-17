@@ -109,7 +109,7 @@ DATABASES = {
 # DATABASES = {
 #     'default': {
 #         'ENGINE': 'django.db.backends.mysql',
-#         'NAME': 'abdelrahmanecomm$default',
+#         'NAME': 'safezone',
 #         'USER': 'root',
 #         'PASSWORD': '',
 #         'HOST': '127.0.0.1',

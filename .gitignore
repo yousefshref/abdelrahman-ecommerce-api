@@ -2,3 +2,7 @@ db.sqlite3
 media/
 */migrations/*.py
 !*/migrations/__init__.py
+db-backup.sql
+db-old.sqlite3
+mysql_info.txt
+media-old
