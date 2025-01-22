@@ -8,6 +8,7 @@ from django.contrib.auth.models import AbstractUser
 class CustomUser(AbstractUser):
     profile_picture = models.TextField(null=True, blank=True)  # Optional profile picture
     is_shipping_employee = models.BooleanField(default=False)
+    is_fast_shipping_employee = models.BooleanField(default=False)
     commission = models.IntegerField(null=True, blank=True)
 
     def __str__(self):
@@ -133,12 +134,16 @@ class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     quantity = models.IntegerField()
+    price = models.IntegerField(null=True, blank=True, default=0)
 
     def __str__(self):
         return self.product.name
     
     
     def save(self, *args, **kwargs):
+        # if self.pk:
+        if self.order.status != "cancelled":
+            self.price = self.product.offer_price * self.quantity if self.product.offer_price else self.product.price * self.quantity
         # Handle stock adjustments
         if self.pk:  # If the OrderItem exists
             old_quantity = OrderItem.objects.get(pk=self.pk).quantity

@@ -729,7 +729,7 @@ class OrdersPagination(PageNumberPagination):
     page_size_query_param = 'page_size'  # Allow clients to set the page size
     max_page_size = 100  # Maximum page size limit
 
-def get_cached_orders(version, user, sales_id=None, search=None, status=None):
+def get_cached_orders(version, user, sales_id=None, search=None, status=None, fast_shipping=False):
     cache_key = f'all_orders_v{version}_user{user.id}'
     
     # Cache by sales_id, search, and status as well to handle different filtering
@@ -739,6 +739,8 @@ def get_cached_orders(version, user, sales_id=None, search=None, status=None):
         cache_key += f'_search{search}'
     if status:
         cache_key += f'_status{status}'
+    if fast_shipping:
+        cache_key += f'_fast_shipping{fast_shipping}'
     
     orders = cache.get(cache_key)
     
@@ -761,6 +763,9 @@ def get_cached_orders(version, user, sales_id=None, search=None, status=None):
         if status:
             orders = orders.filter(status=status)
 
+        if fast_shipping:
+            orders = orders.filter(is_fast_shipping=fast_shipping)
+
         # Cache the orders with a timeout of 1 hour
         cache.set(cache_key, list(orders), timeout=60 * 60)
 
@@ -779,7 +784,11 @@ def get_orders(request):
     status = request.GET.get('status')
 
     # Get the cached orders or fetch fresh ones if not cached
-    orders = get_cached_orders(version, user, sales_id, search, status)
+    fast_shipping_only = False
+    if user.is_fast_shipping_employee:
+        fast_shipping_only = True
+
+    orders = get_cached_orders(version, user, sales_id, search, status, fast_shipping_only)
 
     # Initialize pagination
     paginator = OrdersPagination()
@@ -790,10 +799,10 @@ def get_orders(request):
     total_orders_prices = 0
 
     if sales_id:
-        user = CustomUser .objects.get(id=sales_id)
+        user = CustomUser.objects.get(id=sales_id)
         for order in paginated_orders:
             if order.total:
-                orders_total_commission += int(order.total * user.commission / 100)
+                orders_total_commission += int(int(order.total) * int(user.commission) / 100)
 
     for order in paginated_orders:
         if order.total:
@@ -1061,7 +1070,7 @@ def update_order(request, pk):
         order_total += order.state.shipping_price
 
         if order.is_fast_shipping:
-            order_total += order.state.fast_shipping_price
+            order_total += int(order.state.fast_shipping_price)
 
         return Response(serializer.data, status=status.HTTP_200_OK)
     
