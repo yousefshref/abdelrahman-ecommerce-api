@@ -6,3 +6,7 @@ db-backup.sql
 db-old.sqlite3
 mysql_info.txt
 media-old
+/api/migrations/*
+pip install Django djangorestframew.txt
+/api/__pycache__/*
+mysql_info.txt
