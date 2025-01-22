@@ -19,16 +19,18 @@ def duplicate_order(modeladmin, request, queryset):
             item.order = order
             item.save()
             
-def change_order_date(modeladmin, request, queryset):
+def save_order_items(modeladmin, request, queryset):
     for order in queryset:
-        order.created_at = '2025-01-01'
+        order_items = order.items.all()
+        for item in order_items:
+            item.save()
         order.save()
 
 duplicate_order.short_description = "Duplicate selected orders"
-change_order_date.short_description = "Change order date"
+save_order_items.short_description = "Save Order Items"
 
 class OrderAdmin(admin.ModelAdmin):
-    actions = [duplicate_order, change_order_date]
+    actions = [duplicate_order, save_order_items]
 
 admin.site.register(Order, OrderAdmin)
 admin.site.register(OrderItem)
