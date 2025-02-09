@@ -23,6 +23,12 @@ class ProductSerializerForProduct(serializers.ModelSerializer):
         fields = "__all__"
 
 class ProductSerializer(serializers.ModelSerializer):
+    class Meta():
+        model = Product
+        fields = "__all__"
+
+
+class SingleProductSerializer(serializers.ModelSerializer):
     user_details = UserSerializer(read_only=True, source='user')
     category_details = CategorySerializer(read_only=True, source='category')
     related_products_details = ProductSerializerForProduct(many=True, read_only=True , source='related_products')

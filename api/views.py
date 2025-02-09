@@ -10,7 +10,7 @@ from django.core.cache import cache
 from django.shortcuts import get_object_or_404
 from rest_framework.authtoken.models import Token
 
-from .serializers import UserSerializer, ProductSerializer, StateSerializer, CategorySerializer, OrderSerializer, OrderItemSerializer, HomePageImageSerializer
+from .serializers import UserSerializer, ProductSerializer, StateSerializer, CategorySerializer, OrderSerializer, OrderItemSerializer, HomePageImageSerializer, SingleProductSerializer
 from .models import CustomUser, Product, State, Order, OrderItem, Category, HomePageImage
 
 from django.conf import settings
@@ -235,7 +235,7 @@ def get_product(request, pk):
 
     if cached_product is None:
         product = get_object_or_404(Product, pk=pk)
-        serializer = ProductSerializer(product)
+        serializer = SingleProductSerializer(product)
         cached_product = serializer.data
         cache.set(cache_key, cached_product, timeout=CACHE_TIMEOUT)  # Cache the data
 
