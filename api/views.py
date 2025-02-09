@@ -155,40 +155,91 @@ def get_user(request, pk):
     return Response(serializer.data)
 
 
-from django.db.models import Q, F
+# from django.db.models import Q, F
+
+# @api_view(['GET'])
+# @authentication_classes([SessionAuthentication, TokenAuthentication])
+# @permission_classes([IsAuthenticatedOrReadOnly])
+# def get_products(request):
+#     products = Product.objects.all().order_by('rank')
+
+#     # search
+#     search = request.GET.get('search')
+#     if search:
+#         products = products.filter(name__icontains=search)
+
+#     # category
+#     category = request.GET.get('category')
+#     if category:
+#         products = products.filter(category__id=category)
+
+#     about_to_end = request.GET.get('about_to_end')
+#     if about_to_end:
+#         products = products.filter(Q(min_stock__isnull=False) & Q(stock__lte=F('min_stock')))
+
+
+#     serializer = ProductSerializer(products, many=True)
+#     return Response(serializer.data)
+
+
+# @api_view(['GET'])
+# @authentication_classes([SessionAuthentication, TokenAuthentication])
+# @permission_classes([IsAuthenticatedOrReadOnly])
+# def get_product(request, pk):
+#     product = get_object_or_404(Product, pk=pk)
+#     serializer = ProductSerializer(product)
+#     return Response(serializer.data)
+
+CACHE_TIMEOUT = None
 
 @api_view(['GET'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticatedOrReadOnly])
 def get_products(request):
-    products = Product.objects.all().order_by('rank')
+    cache_key = "products_list"
+    cached_products = cache.get(cache_key)
+    print('got the data from the cache')
 
-    # search
-    search = request.GET.get('search')
-    if search:
-        products = products.filter(name__icontains=search)
+    if cached_products is None:
+        print('got the data from the database')
+        products = Product.objects.all().order_by('rank')
 
-    # category
-    category = request.GET.get('category')
-    if category:
-        products = products.filter(category__id=category)
+        # search
+        search = request.GET.get('search')
+        if search:
+            products = products.filter(name__icontains=search)
 
-    about_to_end = request.GET.get('about_to_end')
-    if about_to_end:
-        products = products.filter(Q(min_stock__isnull=False) & Q(stock__lte=F('min_stock')))
+        # category
+        category = request.GET.get('category')
+        if category:
+            products = products.filter(category__id=category)
 
+        # about to end stock
+        about_to_end = request.GET.get('about_to_end')
+        if about_to_end:
+            products = products.filter(Q(min_stock__isnull=False) & Q(stock__lte=F('min_stock')))
 
-    serializer = ProductSerializer(products, many=True)
-    return Response(serializer.data)
+        serializer = ProductSerializer(products, many=True)
+        cached_products = serializer.data
+        cache.set(cache_key, cached_products, timeout=CACHE_TIMEOUT)  # Cache the data
+
+    return Response(cached_products)
 
 
 @api_view(['GET'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticatedOrReadOnly])
 def get_product(request, pk):
-    product = get_object_or_404(Product, pk=pk)
-    serializer = ProductSerializer(product)
-    return Response(serializer.data)
+    cache_key = f"product_{pk}"
+    cached_product = cache.get(cache_key)
+
+    if cached_product is None:
+        product = get_object_or_404(Product, pk=pk)
+        serializer = ProductSerializer(product)
+        cached_product = serializer.data
+        cache.set(cache_key, cached_product, timeout=CACHE_TIMEOUT)  # Cache the data
+
+    return Response(cached_product)
 
 
 

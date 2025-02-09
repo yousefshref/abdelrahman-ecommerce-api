@@ -4,6 +4,12 @@ from django.contrib.auth.models import AbstractUser
 
 
 
+from django.db.models.signals import pre_delete
+from django.db.models.signals import post_save, post_delete
+from django.dispatch import receiver
+from django.core.cache import cache
+
+
 
 class CustomUser(AbstractUser):
     profile_picture = models.TextField(null=True, blank=True)  # Optional profile picture
@@ -56,7 +62,11 @@ class Product(models.Model):
     def __str__(self):
         return self.name
 
-
+@receiver(post_save, sender=Product)
+@receiver(post_delete, sender=Product)
+def clear_product_cache(sender, instance, **kwargs):
+    cache.delete("products_list")  # Clear the product list cache
+    cache.delete(f"product_{instance.pk}")  # Clear the individual product cache
 
 
 
@@ -171,13 +181,6 @@ class HomePageImage(models.Model):
     image = models.ImageField(upload_to='images/')
     product = models.ForeignKey(Product, on_delete=models.CASCADE, null=True, blank=True)
 
-
-
-
-from django.db.models.signals import pre_delete
-from django.db.models.signals import post_save, post_delete
-from django.dispatch import receiver
-from django.core.cache import cache
 
 
 
