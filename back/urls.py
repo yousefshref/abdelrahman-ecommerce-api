@@ -74,5 +74,11 @@ urlpatterns = [
     path('home_page_images/create/', views.create_home_page_image),
     path('home_page_images/update/<int:pk>/', views.update_home_page_image),
     path('home_page_images/delete/<int:pk>/', views.delete_home_page_image),
+
+
+    path('get_home_for_admin/', views.get_home_for_admin),
+    path('get_total_orders_price_per_month/', views.get_total_orders_price_per_month),
+    path('get_fast_shipping_and_shipping_employees/', views.get_fast_shipping_and_shipping_employees),
+
 ]
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -791,45 +791,38 @@ class OrdersPagination(PageNumberPagination):
     page_size_query_param = 'page_size'  # Allow clients to set the page size
     max_page_size = 100  # Maximum page size limit
 
+from hashlib import md5
+
 def get_cached_orders(version, user, sales_id=None, search=None, status=None, fast_shipping=False):
-    cache_key = f'all_orders_v{version}_user{user.id}'
+    # Hash the search query to prevent long cache keys
+    search_hash = md5(search.encode()).hexdigest() if search else "none"
     
-    # Cache by sales_id, search, and status as well to handle different filtering
-    if sales_id:
-        cache_key += f'_sales{sales_id}'
-    if search:
-        cache_key += f'_search{search}'
-    if status:
-        cache_key += f'_status{status}'
-    if fast_shipping:
-        cache_key += f'_fast_shipping{fast_shipping}'
+    cache_key = f'all_orders_v{version}_user{user.id}_sales{sales_id or "none"}_status{status or "none"}_fast{int(fast_shipping)}_search{search_hash}'
     
     orders = cache.get(cache_key)
     
-    if not orders:
-        orders = Order.objects.all().order_by('-id')
-
-        # If the user is not an admin, filter orders by user
+    if orders is None:
+        filters = Q()
+        
+        # Restrict to the user's orders unless they are admin
         if not user.is_staff:
-            orders = orders.filter(user=user)
+            filters &= Q(user=user)
 
-        # Filter by sales_id if provided
         if sales_id:
-            orders = orders.filter(sales_who_added__pk=sales_id)
+            filters &= Q(sales_who_added__pk=sales_id)
 
-        # Apply search filter
         if search:
-            orders = orders.filter(Q(id__icontains=search) | Q(name__icontains=search) | Q(phone_number__icontains=search))
+            filters &= Q(id__icontains=search) | Q(name__icontains=search) | Q(phone_number__icontains=search)
 
-        # Apply status filter
         if status:
-            orders = orders.filter(status=status)
+            filters &= Q(status=status)
 
         if fast_shipping:
-            orders = orders.filter(is_fast_shipping=fast_shipping)
+            filters &= Q(is_fast_shipping=True)
 
-        # Cache the orders with a timeout of 1 hour
-        cache.set(cache_key, list(orders), timeout=60 * 60)
+        orders = Order.objects.filter(filters).order_by('-id')
+
+        cache.set(cache_key, list(orders), timeout=60 * 60)  # Convert to list only if necessary
 
     return orders
 
@@ -1309,6 +1302,124 @@ def delete_home_page_image(request, pk):
     image = get_object_or_404(HomePageImage, pk=pk)
     image.delete()
     return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+
+
+
+
+
+
+import datetime
+
+
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def get_home_for_admin(request):
+    total_orders = Order.objects.count()
+    out_of_stock = Product.objects.filter(stock=0).count()
+    products = Product.objects.all().count()
+    # get best seller
+    
+    sellers = CustomUser.objects.filter(Q(is_shipping_employee=True) | Q(is_fast_shipping_employee=True))
+    best_seller = ''
+    highest_commission = 0
+    month = request.GET.get('month', None)
+    year = request.GET.get('year', datetime.date.today().year)
+
+    for seller in sellers:
+        if month:
+            orders = Order.objects.filter(
+                sales_who_added=seller, 
+                status='delivered', 
+                created_at__year=year, 
+                created_at__month=month
+            )
+        else:
+            orders = Order.objects.filter(
+                sales_who_added=seller, 
+                status='delivered', 
+                created_at__year=year
+            )
+        
+        total_commission = sum(order.total * (seller.commission / 100) for order in orders if order.total)
+
+        if total_commission > highest_commission:
+            highest_commission = total_commission
+            best_seller = str(seller.first_name) + ' ' + str(seller.last_name)
+    
+
+    data = {
+        'total_orders': total_orders,
+        'out_of_stock': out_of_stock,
+        'products': products,
+        'best_seller': best_seller
+    }
+    return Response(data)
+
+
+
+
+from datetime import date
+import calendar
+
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def get_total_orders_price_per_month(request):
+    year = request.GET.get('year', date.today().year)
+
+    # Get total orders per month in one optimized query
+    orders_summary = (
+        Order.objects.filter(created_at__year=year)
+        .values('created_at__month')
+        .annotate(total=Sum('total'))
+    )
+
+    # Initialize dictionary with month names and 0 as default value
+    total_orders_price = {calendar.month_name[month]: 0 for month in range(1, 13)}
+
+    # Fill in actual values from the database query
+    for entry in orders_summary:
+        month_name = calendar.month_name[entry['created_at__month']]
+        total_orders_price[month_name] = entry['total']
+
+    return Response(total_orders_price)
+
+
+# response
+# {
+#     "January": 5000,
+#     "February": 7000,
+#     "March": 9000,
+#     "April": 0,
+#     "May": 0,
+#     "June": 0,
+#     "July": 0,
+#     "August": 0,
+#     "September": 0,
+#     "October": 0,
+#     "November": 0,
+#     "December": 0
+# }
+
+
+
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def get_fast_shipping_and_shipping_employees(request):
+    print('get_fast_shipping_and_shipping_employees')
+    users = CustomUser.objects.filter(Q(is_fast_shipping_employee=True) | Q(is_shipping_employee=True))
+    serializer = UserSerializer(users, many=True)
+    return Response(serializer.data)
+
+
+
+
+
+
 
 
 
