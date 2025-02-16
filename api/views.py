@@ -616,7 +616,7 @@ def delete_product(request, pk):
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticated])
 def get_sales_users(request):
-    users = CustomUser.objects.filter(is_shipping_employee=True).order_by('-id')
+    users = CustomUser.objects.filter(Q(is_shipping_employee=True) | Q(is_fast_shipping_employee=True)).order_by('-id')
     serializer = UserSerializer(users, many=True)
     return Response(serializer.data)
 
@@ -777,34 +777,27 @@ from django.db.models import Sum, F
 #     return Response(data)
 
 
-from django.core.cache import cache
-from django.db.models import Q
-from rest_framework.response import Response
-from rest_framework.decorators import api_view, authentication_classes, permission_classes
-from rest_framework.authentication import SessionAuthentication, TokenAuthentication
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.pagination import PageNumberPagination  # Import pagination class
 
-# Define a custom pagination class
-class OrdersPagination(PageNumberPagination):
-    page_size = 10  # Default number of orders per page
-    page_size_query_param = 'page_size'  # Allow clients to set the page size
-    max_page_size = 100  # Maximum page size limit
 
 from hashlib import md5
 
-def get_cached_orders(version, user, sales_id=None, search=None, status=None, fast_shipping=False):
+def get_cached_orders(version, user, sales_id=None, search=None, status=None, fast_shipping=False, date_from=None, date_to=None):
     # Hash the search query to prevent long cache keys
     search_hash = md5(search.encode()).hexdigest() if search else "none"
     
-    cache_key = f'all_orders_v{version}_user{user.id}_sales{sales_id or "none"}_status{status or "none"}_fast{int(fast_shipping)}_search{search_hash}'
+    cache_key = f'all_orders_v{version}_user{user.id}_sales{sales_id or "none"}_status{status or "none"}_fast{int(fast_shipping)}_search{search_hash}_from{date_from or "none"}_to{date_to or "none"}'
     
     orders = cache.get(cache_key)
     
     if orders is None:
         filters = Q()
+
+        if date_from:
+            filters &= Q(created_at__gte=date_from)
         
-        # Restrict to the user's orders unless they are admin
+        if date_to:
+            filters &= Q(created_at__lte=date_to)
+        
         if not user.is_staff:
             filters &= Q(user=user)
 
@@ -837,17 +830,16 @@ def get_orders(request):
     sales_id = request.GET.get('sales_id')
     search = request.GET.get('search')
     status = request.GET.get('status')
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
 
     # Get the cached orders or fetch fresh ones if not cached
     fast_shipping_only = False
     if user.is_fast_shipping_employee:
         fast_shipping_only = True
 
-    orders = get_cached_orders(version, user, sales_id, search, status, fast_shipping_only)
-
-    # Initialize pagination
-    paginator = OrdersPagination()
-    paginated_orders = paginator.paginate_queryset(orders, request)
+    orders = get_cached_orders(version, user, sales_id, search, status, fast_shipping_only, date_from, date_to)
+    
 
     # Calculate the total commission and order prices
     orders_total_commission = 0
@@ -855,25 +847,22 @@ def get_orders(request):
 
     if sales_id:
         user = CustomUser.objects.get(id=sales_id)
-        for order in paginated_orders:
+        for order in orders:
             if order.total:
                 orders_total_commission += int(int(order.total) * int(user.commission) / 100)
 
-    for order in paginated_orders:
+    for order in orders:
         if order.total:
             total_orders_prices += int(order.total)
 
     # Prepare response data
     data = {
-        'orders': OrderSerializer(paginated_orders, many=True).data,
+        'orders': OrderSerializer(orders, many=True).data,
         'total_orders_prices': total_orders_prices,
         'total_commission': orders_total_commission,
-        'count': paginator.page.paginator.count,  # Total number of orders
-        'next': paginator.get_next_link(),  # URL for the next page
-        'previous': paginator.get_previous_link()  # URL for the previous page
     }
 
-    return paginator.get_paginated_response(data)
+    return Response(data)
 
 
 
