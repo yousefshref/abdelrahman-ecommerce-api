@@ -793,10 +793,10 @@ def get_cached_orders(version, user, sales_id=None, search=None, status=None, fa
         filters = Q()
 
         if date_from:
-            filters &= Q(created_at__gte=date_from)
+            filters &= Q(created_at__date__gte=date_from)
         
         if date_to:
-            filters &= Q(created_at__lte=date_to)
+            filters &= Q(created_at__date__lte=date_to)
         
         if not user.is_staff:
             filters &= Q(user=user)
