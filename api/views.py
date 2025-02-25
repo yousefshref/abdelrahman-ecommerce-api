@@ -592,26 +592,29 @@ def create_product(request):
 def update_product(request, pk):
     product = get_object_or_404(Product, pk=pk)
     serializer = ProductSerializer(product, data=request.data, partial=True)
+
     if serializer.is_valid():
         product = serializer.save()
-        
-        # get related products
-        related_products = request.data.get('related_products_data', [])
 
-        if isinstance(related_products, str):
-            related_products = list(map(int, filter(None, related_products.split(','))))
+        # Get related products
+        related_products_data = request.data.get('related_products_data', "")
 
-        if related_products:
-            for rp in related_products:
-                related_product = get_object_or_404(Product, id=rp)
-                product.related_products.add(related_product)
+        if isinstance(related_products_data, str):
+            related_products_ids = list(map(int, filter(None, related_products_data.split(','))))
         else:
-            product.related_products.clear()
+            related_products_ids = []
 
-        product.save()
-        
+        # Update related products only if there's a change
+        current_related_ids = set(product.related_products.values_list('id', flat=True))
+        new_related_ids = set(related_products_ids)
+
+        if current_related_ids != new_related_ids:
+            product.related_products.set(Product.objects.filter(id__in=new_related_ids))
+
         return Response(serializer.data, status=status.HTTP_200_OK)
+
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 @api_view(['DELETE'])
