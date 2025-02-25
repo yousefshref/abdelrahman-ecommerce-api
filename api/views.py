@@ -193,50 +193,37 @@ def get_user(request, pk):
 CACHE_TIMEOUT = None
 
 def get_cached_products(search=None, category=None, about_to_end=None):
-    products = Product.objects.all().order_by('rank')
-
+    cache_key = "products_list"
+    
     if search:
-        products = products.filter(name__icontains=search)
-
+        cache_key += f"_search{search}"
     if category:
-        products = products.filter(category__id=category)
-
+        cache_key += f"_category{category}"
     if about_to_end:
-        products = products.filter(Q(min_stock__isnull=False) & Q(stock__lte=F('min_stock')))
-
-    serializer = ProductSerializer(products, many=True)
-    return serializer.data
-    # cache_key = "products_list"
+        cache_key += f"_abouttoend{about_to_end}"
     
-    # if search:
-    #     cache_key += f"_search{search}"
-    # if category:
-    #     cache_key += f"_category{category}"
-    # if about_to_end:
-    #     cache_key += f"_abouttoend{about_to_end}"
+    cached_products = cache.get(cache_key)
     
-    # cached_products = cache.get(cache_key)
-    
-    # if not cached_products:
-    #     print('Fetching products from database')
-    #     products = Product.objects.all().order_by('rank')
+    if not cached_products:
+        print('Fetching products from database')
+        products = Product.objects.all().order_by('rank')
 
-    #     if search:
-    #         products = products.filter(name__icontains=search)
+        if search:
+            products = products.filter(name__icontains=search)
 
-    #     if category:
-    #         products = products.filter(category__id=category)
+        if category:
+            products = products.filter(category__id=category)
 
-    #     if about_to_end:
-    #         products = products.filter(Q(min_stock__isnull=False) & Q(stock__lte=F('min_stock')))
+        if about_to_end:
+            products = products.filter(Q(min_stock__isnull=False) & Q(stock__lte=F('min_stock')))
 
-    #     serializer = ProductSerializer(products, many=True)
-    #     cached_products = serializer.data
-    #     cache.set(cache_key, cached_products, timeout=CACHE_TIMEOUT)  # Cache the data
-    # else:
-    #     print('Fetching products from cache')
+        serializer = ProductSerializer(products, many=True)
+        cached_products = serializer.data
+        cache.set(cache_key, cached_products, timeout=CACHE_TIMEOUT)  # Cache the data
+    else:
+        print('Fetching products from cache')
 
-    # return cached_products
+    return cached_products
 
 @api_view(['GET'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
