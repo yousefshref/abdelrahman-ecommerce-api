@@ -10,8 +10,8 @@ from django.core.cache import cache
 from django.shortcuts import get_object_or_404
 from rest_framework.authtoken.models import Token
 
-from .serializers import UserSerializer, ProductSerializer, StateSerializer, CategorySerializer, OrderSerializer, OrderItemSerializer, HomePageImageSerializer, SingleProductSerializer
-from .models import CustomUser, Product, State, Order, OrderItem, Category, HomePageImage
+from .serializers import *
+from .models import *
 
 from django.conf import settings
 
@@ -101,16 +101,47 @@ def google_auth_view(request):
         return Response({"error": "Invalid Token"}, status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(['POST'])
-def signup(request):
-    serializer = UserSerializer(data=request.data)
+import random
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def register_verify_email(request):
+    serializer = RegistrationSerializer(data=request.data)
+    
+    if CustomUser.objects.filter(email=serializer.initial_data.get("email")).exists():
+        return Response({"email": ["هذا البريد الالكتروني مستخدم بالفعل"]}, status=status.HTTP_400_BAD_REQUEST)
+
     if serializer.is_valid():
-        serializer.save()
-        user = CustomUser.objects.get(username=request.data['username'])
-        user.set_password(request.data['password'])
-        user.save()
-        token = Token.objects.create(user=user)
-        return Response({'token': token.key, 'user': serializer.data})
+        email = serializer.validated_data.get("email")
+        # generate random 6 digit code
+        code = str(random.randint(100000, 999999))
+        
+        # send email
+        subject = "كود التحقق من حسابك"
+        body = f"الكود هو {code} لا تشاركه مع احد."
+        send_email(email, subject, body)
+
+        cache.set(f"email_code_{email}", code, 60 * 60)
+        
+        return Response({"message": "Email verification code sent. Please enter the code."}, status=status.HTTP_200_OK)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def register_view(request):
+    """
+    Register a new account (student or university) and return an auth token.
+    """
+    serializer = RegistrationSerializer(data=request.data)
+    if serializer.is_valid():
+        email = serializer.validated_data.get("email")
+        code = cache.get(f"email_code_{email}")
+        if str(code) != str(request.data.get("code")):
+            return Response({"message": "Email verification code is incorrect"}, status=status.HTTP_400_BAD_REQUEST)
+        user = serializer.save()
+        token, created = Token.objects.get_or_create(user=user)
+        return Response({"token": token.key, "user": UserSerializer(user).data}, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['POST'])
@@ -798,42 +829,32 @@ from django.db.models import Sum, F
 from hashlib import md5
 
 def get_cached_orders(version, user, sales_id=None, search=None, status=None, fast_shipping=False, date_from=None, date_to=None):
-    # Hash the search query to prevent long cache keys
-    search_hash = md5(search.encode()).hexdigest() if search else "none"
-    
-    cache_key = f'all_orders_v{version}_user{user.id}_sales{sales_id or "none"}_status{status or "none"}_fast{int(fast_shipping)}_search{search_hash}_from{date_from or "none"}_to{date_to or "none"}'
-    
-    orders = cache.get(cache_key)
-    
-    if orders is None:
-        filters = Q()
+    filters = Q()
 
-        if date_from:
-            filters &= Q(created_at__date__gte=date_from)
-        
-        if date_to:
-            filters &= Q(created_at__date__lte=date_to)
-        
-        if not user.is_staff:
-            filters &= Q(user=user)
+    if date_from:
+        filters &= Q(created_at__date__gte=date_from)
 
-        if sales_id:
-            filters &= Q(sales_who_added__pk=sales_id)
+    if date_to:
+        filters &= Q(created_at__date__lte=date_to)
 
-        if search:
-            filters &= Q(id__icontains=search) | Q(name__icontains=search) | Q(phone_number__icontains=search)
+    if not user.is_staff:
+        filters &= Q(user=user)
 
-        if status:
-            filters &= Q(status=status)
+    if sales_id:
+        filters &= Q(sales_who_added__pk=sales_id)
 
-        if fast_shipping:
-            filters &= Q(is_fast_shipping=True)
+    if search:
+        filters &= Q(id__icontains=search) | Q(name__icontains=search) | Q(phone_number__icontains=search)
 
-        orders = Order.objects.filter(filters).order_by('-id')
+    if status:
+        filters &= Q(status=status)
 
-        cache.set(cache_key, list(orders), timeout=60 * 60)  # Convert to list only if necessary
+    if fast_shipping:
+        filters &= Q(is_fast_shipping=True)
 
+    orders = Order.objects.filter(filters).order_by('-id')
     return orders
+
 
 @api_view(['GET'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
