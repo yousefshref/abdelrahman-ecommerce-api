@@ -10,3 +10,10 @@ media-old
 pip install Django djangorestframew.txt
 /api/__pycache__/*
 mysql_info.txt
+staticfiles/
+media/
+mediaold/
+api/__pycache__/*
+back/__pycache__/*
+__pycache__/
+*.pyc

@@ -726,7 +726,7 @@ def get_orders(request):
     if user.is_fast_shipping_employee:
         fast_shipping_only = True
 
-    orders = get_cached_orders(version, user, sales_id, search, status, fast_shipping_only, date_from, date_to)
+    orders = get_cached_orders(version, user, sales_id, search, status, fast_shipping_only, date_from, date_to, None, None)
     
 
     # Calculate the total commission and order prices
