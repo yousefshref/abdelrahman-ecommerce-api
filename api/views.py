@@ -728,21 +728,21 @@ def get_orders(request):
     # orders = get_cached_orders(version=None, user=user, sales_id=sales_id, search=search, status=status, fast_shipping=fast_shipping_only, date_from=date_from, date_to=date_to, date=None, search_product=None)
     orders = Order.objects.all().order_by('-id')
 
-    # if sales_id:
-    #     orders = orders.filter(sales_who_added__pk=sales_id)
+    if sales_id:
+        orders = orders.filter(sales_who_added__pk=sales_id)
 
-    # if search:
-    #     search_fields = ['id', 'name', 'phone_number']
-    #     search_filters = Q()
-    #     for field in search_fields:
-    #         search_filters |= Q(**{f"{field}__icontains": search})
-    #     orders = orders.filter(search_filters)
+    if search:
+        search_fields = ['id', 'name', 'phone_number']
+        search_filters = Q()
+        for field in search_fields:
+            search_filters |= Q(**{f"{field}__icontains": search})
+        orders = orders.filter(search_filters)
 
-    # if status:
-    #     orders = orders.filter(status=status)
+    if status:
+        orders = orders.filter(status=status)
 
-    # if fast_shipping_only:
-    #     orders = orders.filter(is_fast_shipping=True)
+    if fast_shipping_only:
+        orders = orders.filter(is_fast_shipping=True)
 
     # if date_from:
     #     orders = orders.filter(created_at__date__gte=date_from)
