@@ -688,14 +688,18 @@ def get_cached_orders(version=None, user=None, sales_id=None, search=None, statu
     if date_to:
         filters &= Q(created_at__date__lte=date_to)
 
-    # if user and (not user.is_staff or not user.is_superuser):
-    #     filters &= Q(user=user)
+    if user and not (user.is_staff or user.is_superuser):
+        filters &= Q(user=user)
 
     if sales_id:
         filters &= Q(sales_who_added__pk=sales_id)
 
     if search:
-        filters &= Q(id__icontains=search) | Q(name__icontains=search) | Q(phone_number__icontains=search)
+        search_fields = ['id', 'name', 'phone_number']
+        search_filters = Q()
+        for field in search_fields:
+            search_filters |= Q(**{f"{field}__icontains": search})
+        filters &= search_filters
 
     if status:
         filters &= Q(status=status)
@@ -712,38 +716,32 @@ def get_cached_orders(version=None, user=None, sales_id=None, search=None, statu
 @permission_classes([IsAuthenticated])
 def get_orders(request):
     user = request.user
-    version = cache.get('order_version', 1)  # You can update this version number when the orders data changes
-    
-    # Fetch cached orders based on filters
+    version = cache.get('order_version', 1)
+
     sales_id = request.GET.get('sales_id')
     search = request.GET.get('search')
     status = request.GET.get('status')
     date_from = request.GET.get('date_from')
     date_to = request.GET.get('date_to')
 
-    # Get the cached orders or fetch fresh ones if not cached
-    fast_shipping_only = False
-    if user.is_fast_shipping_employee:
-        fast_shipping_only = True
-
-    orders = get_cached_orders(None, user=user, sales_id=sales_id, search=search, status=status, fast_shipping=fast_shipping_only, date_from=date_from, date_to=date_to, date=None, search_product=None)
-    
-
-    # Calculate the total commission and order prices
-    orders_total_commission = 0
-    total_orders_prices = 0
+    fast_shipping_only = user.is_fast_shipping_employee
 
     if sales_id:
-        user = CustomUser.objects.get(id=sales_id)
+        try:
+            user = CustomUser.objects.get(id=sales_id)
+        except CustomUser.DoesNotExist:
+            return Response({"error": "Invalid Sales ID"}, status=400)
+
+    orders = get_cached_orders(version, user=user, sales_id=sales_id, search=search, status=status, fast_shipping=fast_shipping_only, date_from=date_from, date_to=date_to)
+
+    orders_total_commission = 0
+    total_orders_prices = sum(int(order.total) for order in orders if order.total)
+
+    if sales_id and user.commission:
         for order in orders:
             if order.total:
-                orders_total_commission += int(int(order.total) * int(user.commission) / 100)
+                orders_total_commission += (int(order.total) * int(user.commission)) // 100
 
-    for order in orders:
-        if order.total:
-            total_orders_prices += int(order.total)
-
-    # Prepare response data
     data = {
         'orders': OrderSerializer(orders, many=True).data,
         'total_orders_prices': total_orders_prices,
