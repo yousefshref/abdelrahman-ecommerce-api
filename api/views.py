@@ -711,6 +711,8 @@ def get_cached_orders(version=None, user=None, sales_id=None, search=None, statu
     return orders
 
 
+from datetime import datetime
+
 @api_view(['GET'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticated])
@@ -745,10 +747,13 @@ def get_orders(request):
         orders = orders.filter(is_fast_shipping=True)
 
     if date_from:
-        orders = orders.filter(created_at__date__gte=date_from)
+        # Convert the date string to a date object
+        date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
+        filters &= Q(created_at__date__gte=date_from_obj)
 
     if date_to:
-        orders = orders.filter(created_at__date__lte=date_to)
+        date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
+        filters &= Q(created_at__date__lte=date_to_obj)
 
     orders_total_commission = 0
     total_orders_prices = sum(int(order.total) for order in orders if order.total)
