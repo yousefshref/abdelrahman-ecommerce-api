@@ -14,7 +14,8 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
-from django.contrib import admin
+# from django.contrib import admin
+from api.admin import admin_site
 from django.urls import path
 
 from api import views
@@ -24,10 +25,11 @@ from django.conf.urls.static import static
 
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    path('admin/', admin_site.urls),
 
     path('google-auth/', views.google_auth_view),
-    path('register/', views.signup),
+    path('register-verify/', views.register_verify_email),
+    path('register/', views.register_view),
     path('login/', views.login),
 
     path('user/', views.user),
@@ -61,13 +63,13 @@ urlpatterns = [
 
     path('orders/create/', views.create_order),
     path('orders/', views.get_orders),
-    path('orders/latest/', views.get_latest_client_orders),
-    path('orders/deliverd/', views.deliverd_orders_client),
-    path('orders/cancelled/', views.cancelled_orders_client),
     path('orders/<int:pk>/', views.get_order),
     path('orders/update/<int:pk>/', views.update_order),
     path('orders/delete/<int:pk>/', views.delete_order),
     path('orders/cancel/', views.cancel_order),
+
+    # customer
+    path('orders/customer/', views.get_customer_orders),
 
 
     path('home_page_images/', views.home_page_images),

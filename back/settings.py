@@ -42,12 +42,20 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
-    'api',
+    'api.apps.YourAppConfig',
     'rest_framework',
     'rest_framework.authtoken',
+    
+    'rangefilter',
+    
+    "corsheaders",
 
-    "corsheaders"
+    "django_jalali",
 ]
+
+
+LANGUAGE_CODE = 'ar'
+USE_L10N = True
 
 
 
@@ -58,6 +66,7 @@ AUTH_USER_MODEL = 'api.CustomUser'
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.locale.LocaleMiddleware',
     "corsheaders.middleware.CorsMiddleware",
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -84,10 +93,11 @@ REST_FRAMEWORK = {
 
 ROOT_URLCONF = 'back.urls'
 
+import os
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [os.path.join(BASE_DIR, 'templates')],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -150,11 +160,9 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Africa/Cairo'
+USE_TZ = True  # This must be True
 
-USE_I18N = True
-
-USE_TZ = True
 
 
 # Static files (CSS, JavaScript, Images)

@@ -1,0 +1,12 @@
+{% extends "admin/change_list.html" %}
+
+{% block search %}
+<div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+    <div>
+        <h3 style="margin: 0; font-weight: bold;">Total Orders: {{ total_orders }}</h3>
+        <h3 style="margin: 0; font-weight: bold;">Total Commissions: {{ total_commissions }} EGP</h3>
+        <h3 style="margin: 0; font-weight: bold;">Total Sales: {{ total_sales }} EGP</h3>
+    </div>
+</div>
+{{ block.super }}
+{% endblock %}

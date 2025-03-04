@@ -339,8 +339,6 @@ def state_detail(request, pk):
 from django.db import transaction
 
 
-
-
 @api_view(['POST'])
 # @authentication_classes([TokenAuthentication, SessionAuthentication])
 @authentication_classes([TokenAuthentication])
@@ -672,164 +670,17 @@ def get_sales_users(request):
 from django.db.models import Q
 from django.db.models import Sum, F
 
-# def get_cached_orders():
-#     version = cache.get('order_version', 1)
-#     orders = cache.get(f'all_orders_v{version}')
-#     if not orders:
-#         orders = list(Order.objects.all().order_by('-id'))
-#         cache.set(f'all_orders_v{version}', orders, timeout=60 * 60)  # Cache for 1 hour
-#     return orders
-
-# @api_view(['GET'])
-# @authentication_classes([SessionAuthentication, TokenAuthentication])
-# @permission_classes([IsAuthenticated])
-# def get_orders(request):
-#     orders = Order.objects.all().order_by('-id')
-
-#     # chaeck if the user is not admin
-#     user = request.user
-
-#     if user.is_staff == False:
-#         orders = orders.filter(user=user)
-
-#     # if user.is_shipping_employee == False:
-#     #     orders = orders.filter(user=user)
-
-#     # Filter by sales_id if provided
-#     sales_id = request.GET.get('sales_id')
-
-#     orders_total_commission = 0
-#     total_orders_prices = 0
-
-#     if sales_id:
-#         orders = orders.filter(sales_who_added__pk=sales_id)
-
-#         user = CustomUser.objects.get(id=sales_id)
-#         for order in orders:
-#             if order.total:
-#                 orders_total_commission += int(order.total * user.commission / 100)
-
-#         for order in orders:
-#             if order.total:
-#                 total_orders_prices += int(order.total)
-
-#     # id and name and phone
-#     search = request.GET.get('search')
-#     if search:
-#         # orders = [order for order in orders if search.lower() in str(order.id).lower() or search.lower() in order.name.lower() or search.lower() in order.phone_number.lower()]
-#         orders = orders.filter(Q(id__icontains=search) | Q(name__icontains=search) | Q(phone_number__icontains=search))
-
-#     # status
-#     status = request.GET.get('status')
-#     if status:
-#         # orders = [order for order in orders if order.status == status]
-#         orders = orders.filter(status=status)
-
-
-#     if not sales_id:
-#         for order in orders:
-#             if order.total:
-#                 total_orders_prices += int(order.total)
-
-#     # Prepare response data
-#     data = {
-#         'orders': OrderSerializer(orders, many=True).data,
-#         'total_orders_prices': total_orders_prices,
-#         'total_commission': orders_total_commission
-#     }
-
-#     return Response(data)
-
-
-# from django.core.cache import cache
-# from django.db.models import Q
-# from rest_framework.response import Response
-# from rest_framework.decorators import api_view, authentication_classes, permission_classes
-# from rest_framework.authentication import SessionAuthentication, TokenAuthentication
-# from rest_framework.permissions import IsAuthenticated
-
-# def get_cached_orders(version, user, sales_id=None, search=None, status=None):
-#     cache_key = f'all_orders_v{version}_user{user.id}'
-    
-#     # Cache by sales_id, search, and status as well to handle different filtering
-#     if sales_id:
-#         cache_key += f'_sales{sales_id}'
-#     if search:
-#         cache_key += f'_search{search}'
-#     if status:
-#         cache_key += f'_status{status}'
-    
-#     orders = cache.get(cache_key)
-    
-#     if not orders:
-#         orders = Order.objects.all().order_by('-id')
-
-#         # If the user is not an admin, filter orders by user
-#         if not user.is_staff:
-#             orders = orders.filter(user=user)
-
-#         # Filter by sales_id if provided
-#         if sales_id:
-#             orders = orders.filter(sales_who_added__pk=sales_id)
-
-#         # Apply search filter
-#         if search:
-#             orders = orders.filter(Q(id__icontains=search) | Q(name__icontains=search) | Q(phone_number__icontains=search))
-
-#         # Apply status filter
-#         if status:
-#             orders = orders.filter(status=status)
-
-#         # Cache the orders with a timeout of 1 hour
-#         cache.set(cache_key, list(orders), timeout=60 * 60)
-
-#     return orders
-
-# @api_view(['GET'])
-# @authentication_classes([SessionAuthentication, TokenAuthentication])
-# @permission_classes([IsAuthenticated])
-# def get_orders(request):
-#     user = request.user
-#     version = cache.get('order_version', 1)  # You can update this version number when the orders data changes
-    
-#     # Fetch cached orders based on filters
-#     sales_id = request.GET.get('sales_id')
-#     search = request.GET.get('search')
-#     status = request.GET.get('status')
-
-#     # Get the cached orders or fetch fresh ones if not cached
-#     orders = get_cached_orders(version, user, sales_id, search, status)
-    
-#     # Calculate the total commission and order prices
-#     orders_total_commission = 0
-#     total_orders_prices = 0
-
-#     if sales_id:
-#         user = CustomUser.objects.get(id=sales_id)
-#         for order in orders:
-#             if order.total:
-#                 orders_total_commission += int(order.total * user.commission / 100)
-
-#     for order in orders:
-#         if order.total:
-#             total_orders_prices += int(order.total)
-
-#     # Prepare response data
-#     data = {
-#         'orders': OrderSerializer(orders, many=True).data,
-#         'total_orders_prices': total_orders_prices,
-#         'total_commission': orders_total_commission
-#     }
-
-#     return Response(data)
-
-
-
 
 from hashlib import md5
 
-def get_cached_orders(version, user, sales_id=None, search=None, status=None, fast_shipping=False, date_from=None, date_to=None):
+def get_cached_orders(version=None, user=None, sales_id=None, search=None, status=None, fast_shipping=False, date_from=None, date_to=None, date=None, search_product=None):
     filters = Q()
+
+    if date:
+        filters &= Q(created_at__date__gte=now().date() - timedelta(days=int(date)))
+
+    if search_product:
+        filters &= Q(items__product__name__icontains=search_product)
 
     if date_from:
         filters &= Q(created_at__date__gte=date_from)
@@ -837,7 +688,7 @@ def get_cached_orders(version, user, sales_id=None, search=None, status=None, fa
     if date_to:
         filters &= Q(created_at__date__lte=date_to)
 
-    if not user.is_staff:
+    if user and not user.is_staff:
         filters &= Q(user=user)
 
     if sales_id:
@@ -852,7 +703,7 @@ def get_cached_orders(version, user, sales_id=None, search=None, status=None, fa
     if fast_shipping:
         filters &= Q(is_fast_shipping=True)
 
-    orders = Order.objects.filter(filters).order_by('-id')
+    orders = Order.objects.filter(filters).order_by('-id').distinct()
     return orders
 
 
@@ -906,46 +757,17 @@ def get_orders(request):
 @api_view(['GET'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticated])
-def get_latest_client_orders(request):
+def get_customer_orders(request):
     user = request.user
 
-    if not user.is_authenticated:
-        return Response({"error": "You are not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
-    
-    orders = get_cached_orders()
-    orders = [order for order in orders if order.user.pk == user.id]
-    seven_days_ago = now() - timedelta(days=7)
-    orders = [order for order in orders if order.created_at >= seven_days_ago]
+    date = request.GET.get('date')
+    search = request.GET.get('search')
+
+    orders = get_cached_orders(user=user, date=date, search_product=search)
+
     serializer = OrderSerializer(orders, many=True)
     return Response(serializer.data)
 
-
-@api_view(['GET'])
-@authentication_classes([SessionAuthentication, TokenAuthentication])
-@permission_classes([IsAuthenticated])
-def deliverd_orders_client(request):
-    user = request.user
-
-    if not user.is_authenticated:
-        return Response({"error": "You are not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
-    
-    orders = Order.objects.filter(status='delivered', user=user)
-    serializer = OrderSerializer(orders, many=True)
-    return Response(serializer.data)
-
-
-@api_view(['GET'])
-@authentication_classes([SessionAuthentication, TokenAuthentication])
-@permission_classes([IsAuthenticated])
-def cancelled_orders_client(request):
-    user = request.user
-
-    if not user.is_authenticated:
-        return Response({"error": "You are not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
-    
-    orders = Order.objects.filter(status='cancelled', user=user)
-    serializer = OrderSerializer(orders, many=True)
-    return Response(serializer.data)
 
 
 
@@ -965,71 +787,8 @@ def get_order(request, pk):
     }
     return Response(data, status=status.HTTP_200_OK)
 
-# @api_view(['PUT'])
-# @authentication_classes([SessionAuthentication, TokenAuthentication])
-# @permission_classes([IsAuthenticated])
-# def update_order(request, pk):
-#     order = get_object_or_404(Order, pk=pk)
-#     data = request.data.copy()
 
-#     serializer = OrderSerializer(order, data=data, partial=True)
-#     if serializer.is_valid():
-#         # Track order items from the request
-#         order_items_data = data.get('order_items', [])
-        
-#         # Dictionary to track existing OrderItem objects
-#         existing_items = {item.id: item for item in order.items.all()}
-        
-#         for item_data in order_items_data:
-#             product_id = item_data.get('product')
-#             quantity = item_data.get('quantity', 0)
-            
-#             try:
-#                 # Check if the OrderItem already exists
-#                 order_item = OrderItem.objects.get(order=order, product_id=product_id)
-                
-#                 # Update the quantity and check stock availability
-#                 if int(quantity) > int(order_item.quantity):
-#                     additional_quantity_needed = int(quantity) - int(order_item.quantity)
-#                     if int(order_item.product.stock) < int(additional_quantity_needed):
-#                         return Response({'error': f'Insufficient stock for product {order_item.product.name}'}, status=status.HTTP_400_BAD_REQUEST)
-                    
-#                     # Reduce stock
-#                     order_item.product.stock -= additional_quantity_needed
-#                 elif int(quantity) < int(order_item.quantity):
-#                     # Increase stock back if the new quantity is less
-#                     stock_difference = int(order_item.quantity) - int(quantity)
-#                     order_item.product.stock += int(stock_difference)
-                
-#                 # Update the order item quantity
-#                 order_item.quantity = int(quantity)
-#                 order_item.save()
-#                 order_item.product.save()
-#                 existing_items.pop(order_item.id, None)  # Remove from existing items tracker
-                
-#             except OrderItem.DoesNotExist:
-#                 # Handle new OrderItem creation
-#                 product = get_object_or_404(Product, pk=product_id)
-                
-#                 if int(product.stock) < int(quantity):
-#                     return Response({'error': f'Insufficient stock for product {product.name}'}, status=status.HTTP_400_BAD_REQUEST)
-                
-#                 # Create new OrderItem and reduce stock
-#                 OrderItem.objects.create(order=order, product=product, quantity=quantity)
-#                 product.stock -= int(quantity)
-#                 product.save()
-        
-#         # Delete any OrderItems that are not included in the request data
-#         for remaining_item in existing_items.values():
-#             remaining_item.product.stock += remaining_item.quantity  # Restore stock
-#             remaining_item.product.save()
-#             remaining_item.delete()
-        
-#         # Save the order after processing items
-#         order = serializer.save()
-#         return Response(serializer.data, status=status.HTTP_200_OK)
-    
-#     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 @api_view(['PUT'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticated])

@@ -1,0 +1,22 @@
+{% extends "admin/change_list.html" %}
+{% load i18n admin_urls static %}
+
+{% block object-tools %}
+<div style="padding: 10px; margin-bottom: 15px; background-color: #f8f8f8; border: 1px solid #ddd; border-radius: 4px; width: 100%;">
+  <form method="post" action="{% url 'admin:set_date_range' %}">
+    {% csrf_token %}
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <div>
+        <label for="id_custom_start_date">Start Date:</label>
+        <input type="date" name="custom_start_date" id="id_custom_start_date" value="{{ date_range_form.custom_start_date.value|default:'' }}">
+      </div>
+      <div>
+        <label for="id_custom_end_date">End Date:</label>
+        <input type="date" name="custom_end_date" id="id_custom_end_date" value="{{ date_range_form.custom_end_date.value|default:'' }}">
+      </div>
+      <button type="submit" style="margin-left: 10px; padding: 5px 10px;">Apply Filter</button>
+    </div>
+  </form>
+</div>
+{{ block.super }}
+{% endblock %}

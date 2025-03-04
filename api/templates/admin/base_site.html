@@ -1,0 +1,11 @@
+{% extends "admin/base.html" %}
+
+{% block extrastyle %}
+    {{ block.super }}
+    <link rel="stylesheet" href="/static/admin/css/rtl.css">
+{% endblock %}
+
+{% block title %}لوحة التحكم{% endblock %}
+{% block branding %}
+<h1 id="site-name"><a href="{% url 'admin:index' %}">لوحة التحكم</a></h1>
+{% endblock %}
