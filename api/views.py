@@ -688,8 +688,8 @@ def get_cached_orders(version=None, user=None, sales_id=None, search=None, statu
     if date_to:
         filters &= Q(created_at__date__lte=date_to)
 
-    if user and (not user.is_staff or not user.is_superuser):
-        filters &= Q(user=user)
+    # if user and (not user.is_staff or not user.is_superuser):
+    #     filters &= Q(user=user)
 
     if sales_id:
         filters &= Q(sales_who_added__pk=sales_id)
