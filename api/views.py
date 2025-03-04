@@ -746,14 +746,14 @@ def get_orders(request):
     if fast_shipping_only:
         orders = orders.filter(is_fast_shipping=True)
 
-    if date_from:
-        # Convert the date string to a date object
-        date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
-        filters &= Q(created_at__date__gte=date_from_obj)
+    # if date_from:
+    #     # Convert the date string to a date object
+    #     date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
+    #     filters &= Q(created_at__date__gte=date_from_obj)
 
-    if date_to:
-        date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
-        filters &= Q(created_at__date__lte=date_to_obj)
+    # if date_to:
+    #     date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
+    #     filters &= Q(created_at__date__lte=date_to_obj)
 
     orders_total_commission = 0
     total_orders_prices = sum(int(order.total) for order in orders if order.total)
