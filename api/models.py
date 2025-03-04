@@ -184,7 +184,11 @@ class Order(models.Model):
 
 
     def save(self, *args, **kwargs):
-        user = self.req_user
+        user = None
+        try:
+            user = self.req_user
+        except:
+            pass
 
         # Now use `user` for custom logic without modifying order.user
         if self.pk:  # Update
