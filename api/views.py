@@ -744,11 +744,11 @@ def get_orders(request):
     # if fast_shipping_only:
     #     orders = orders.filter(is_fast_shipping=True)
 
-    if date_from:
-        orders = orders.filter(created_at__date__gte=date_from)
+    # if date_from:
+    #     orders = orders.filter(created_at__date__gte=date_from)
 
-    if date_to:
-        orders = orders.filter(created_at__date__lte=date_to)
+    # if date_to:
+    #     orders = orders.filter(created_at__date__lte=date_to)
 
     orders_total_commission = 0
     total_orders_prices = sum(int(order.total) for order in orders if order.total)
