@@ -716,21 +716,14 @@ def get_cached_orders(version=None, user=None, sales_id=None, search=None, statu
 @permission_classes([IsAuthenticated])
 def get_orders(request):
     user = request.user
-    version = cache.get('order_version', 1)
 
-    sales_id = request.GET.get('sales_id')
-    search = request.GET.get('search')
-    status = request.GET.get('status')
-    date_from = request.GET.get('date_from')
-    date_to = request.GET.get('date_to')
+    sales_id = request.GET.get('sales_id', None)
+    search = request.GET.get('search', None)
+    status = request.GET.get('status', None)
+    date_from = request.GET.get('date_from', None)
+    date_to = request.GET.get('date_to', None)
 
     fast_shipping_only = user.is_fast_shipping_employee
-
-    if sales_id:
-        try:
-            user = CustomUser.objects.get(id=sales_id)
-        except CustomUser.DoesNotExist:
-            return Response({"error": "Invalid Sales ID"}, status=400)
 
     orders = get_cached_orders(version=None, user=user, sales_id=sales_id, search=search, status=status, fast_shipping=fast_shipping_only, date_from=date_from, date_to=date_to, date=None, search_product=None)
     # orders = Order.objects.all().order_by('-id')
