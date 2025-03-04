@@ -732,7 +732,8 @@ def get_orders(request):
         except CustomUser.DoesNotExist:
             return Response({"error": "Invalid Sales ID"}, status=400)
 
-    orders = get_cached_orders(version, user=user, sales_id=sales_id, search=search, status=status, fast_shipping=fast_shipping_only, date_from=date_from, date_to=date_to)
+    # orders = get_cached_orders(version, user=user, sales_id=sales_id, search=search, status=status, fast_shipping=fast_shipping_only, date_from=date_from, date_to=date_to)
+    orders = Order.objects.all().order_by('-id')
 
     orders_total_commission = 0
     total_orders_prices = sum(int(order.total) for order in orders if order.total)
