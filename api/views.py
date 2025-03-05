@@ -747,7 +747,6 @@ def get_orders(request):
         orders = orders.filter(is_fast_shipping=True)
 
     if date_from:
-        # Convert the date string to a date object
         orders = orders.filter(created_at__date__gte=date_from)
 
     if date_to:
