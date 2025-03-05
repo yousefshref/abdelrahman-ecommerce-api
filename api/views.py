@@ -371,16 +371,16 @@ def create_order(request):
             if ser.is_valid():
                 ser.save()
 
-                # product = get_object_or_404(Product, id=item['product'])
+                product = get_object_or_404(Product, id=item['product'])
 
-                # if int(product.stock) < int(item['quantity']):
-                #     order.delete()
-                #     return Response(f'هذا المنتج غير متوفر في المخزن: {product.name}, برجاء تخفيف العدد المطلوب او حذفه من السلة', status=status.HTTP_400_BAD_REQUEST)
-                # else:
-                #     product.stock -= int(item['quantity'])
-                #     product.save()
+                if int(product.stock) < int(item['quantity']):
+                    order.delete()
+                    return Response(f'هذا المنتج غير متوفر في المخزن: {product.name}, برجاء تخفيف العدد المطلوب او حذفه من السلة', status=status.HTTP_400_BAD_REQUEST)
+                else:
+                    product.stock -= int(item['quantity'])
+                    product.save()
 
-                    # return Response(ser.data, status=status.HTTP_201_CREATED)
+                    return Response(ser.data, status=status.HTTP_201_CREATED)
             else:
                 return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -805,81 +805,58 @@ def get_order(request, pk):
 
 
 
+
+
 @api_view(['PUT'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticated])
+@transaction.atomic
 def update_order(request, pk):
     order = get_object_or_404(Order, pk=pk)
     data = request.data.copy()
+    send_shipped_email = data.get('status') == 'shipped' and order.status != 'shipped'
+    send_delivered_email = data.get('status') == 'delivered' and order.status != 'delivered'
 
-    send_shipped_email = False
-    if data.get('status') == 'shipped' and order.status != 'shipped':
-        send_shipped_email = True
-
-    send_delivered_email = False
-    if data.get('status') == 'delivered' and order.status != 'delivered':
-        send_delivered_email = True
-
-
-    # Update order fields (except order_items)
     serializer = OrderSerializer(order, data=data, partial=True)
     if serializer.is_valid():
-        # Process order_items only if they are included in the request
         order_items_data = data.get('order_items')
-        if order_items_data is not None:
-            # Dictionary to track existing OrderItem objects
-            existing_items = {item.id: item for item in order.items.all()}
-            
-            for item_data in order_items_data:
-                product_id = item_data.get('product')
-                quantity = item_data.get('quantity', 0)
-                
-                try:
-                    # Check if the OrderItem already exists
-                    order_item = OrderItem.objects.get(order=order, product_id=product_id)
-                    
-                    # Update the quantity and check stock availability
-                    if int(quantity) > int(order_item.quantity):
-                        additional_quantity_needed = int(quantity) - int(order_item.quantity)
-                        if int(order_item.product.stock) < int(additional_quantity_needed):
-                            return Response({'error': f'Insufficient stock for product {order_item.product.name}'}, status=status.HTTP_400_BAD_REQUEST)
-                        
-                        # Reduce stock
-                        order_item.product.stock -= additional_quantity_needed
-                    elif int(quantity) < int(order_item.quantity):
-                        # Increase stock back if the new quantity is less
-                        stock_difference = int(order_item.quantity) - int(quantity)
-                        order_item.product.stock += int(stock_difference)
-                    
-                    # Update the order item quantity
-                    order_item.quantity = int(quantity)
-                    order_item.save()
-                    order_item.product.save()
-                    existing_items.pop(order_item.id, None)  # Remove from existing items tracker
-                    
-                except OrderItem.DoesNotExist:
-                    # Handle new OrderItem creation
-                    product = get_object_or_404(Product, pk=product_id)
-                    
-                    if int(product.stock) < int(quantity):
-                        return Response({'error': f'Insufficient stock for product {product.name}'}, status=status.HTTP_400_BAD_REQUEST)
-                    
-                    # Create new OrderItem and reduce stock
-                    OrderItem.objects.create(order=order, product=product, quantity=quantity)
-                    product.stock -= int(quantity)
-                    product.save()
-            
-            # Delete any OrderItems that are not included in the request data
-            for remaining_item in existing_items.values():
-                remaining_item.product.stock += remaining_item.quantity  # Restore stock
-                remaining_item.product.save()
-                remaining_item.delete()
+        existing_items = {item.product_id: item for item in order.items.all()}
 
-        # Save the order after processing items (if any)
+        if order_items_data is not None:
+            for item_data in order_items_data:
+                product_id = int(item_data['product'])
+                quantity = int(item_data.get('quantity', 1))
+                product = get_object_or_404(Product, pk=product_id)
+
+                if product_id in existing_items:
+                    order_item = existing_items.pop(product_id)
+                    stock_difference = quantity - order_item.quantity
+
+                    if stock_difference > 0 and product.stock < stock_difference:
+                        return Response({'error': f'Insufficient stock for {product.name}'}, status=status.HTTP_400_BAD_REQUEST)
+
+                    product.stock = F('stock') - stock_difference
+                    order_item.quantity = quantity
+                    order_item.save()
+                else:
+                    if product.stock < quantity:
+                        return Response({'error': f'Insufficient stock for {product.name}'}, status=status.HTTP_400_BAD_REQUEST)
+
+                    OrderItem.objects.create(order=order, product=product, quantity=quantity)
+                    product.stock = F('stock') - quantity
+
+                product.save(update_fields=['stock'])
+
+            # Delete missing items
+            for item in existing_items.values():
+                item.product.stock = F('stock') + item.quantity
+                item.product.save(update_fields=['stock'])
+                item.delete()
+
         order = serializer.save()
 
         # i want to check if the status data that comes from request is !== to the current status of the order and if it is then i want to send an email to the user
-        if order.status == 'delivered' and order.email and order.tracking_code and send_delivered_email:
+        if send_shipped_email:
             send_email(
                 recipient_email=order.email,
                 subject="تم تسليم شحنتك",
@@ -896,7 +873,7 @@ def update_order(request, pk):
             )
             print('email sent', order.email)
 
-        if order.status == 'shipped' and order.email and order.tracking_code and send_shipped_email:
+        if send_delivered_email:
             send_email(
                 recipient_email=order.email,
                 subject="تم شحن طلبك",
@@ -912,25 +889,145 @@ def update_order(request, pk):
                 content_type="html"
             )
             print('email sent', order.email)
-        
 
-        # calculate total order
-        order_items = order.items.all()
-        order_total = 0
-        for item in order_items:
-            if item.product.offer_price:
-                order_total += item.product.offer_price * item.quantity
-            else:
-                order_total += item.product.price * item.quantity
-            
-        order_total += order.state.shipping_price
+
+        order_total = sum(
+            (item.product.offer_price or item.product.price) * item.quantity for item in order.items.all()
+        ) + order.state.shipping_price
 
         if order.is_fast_shipping:
             order_total += int(order.state.fast_shipping_price)
 
         return Response(serializer.data, status=status.HTTP_200_OK)
-    
+
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+# @api_view(['PUT'])
+# @authentication_classes([SessionAuthentication, TokenAuthentication])
+# @permission_classes([IsAuthenticated])
+# def update_order(request, pk):
+#     order = get_object_or_404(Order, pk=pk)
+#     data = request.data.copy()
+
+#     send_shipped_email = False
+#     if data.get('status') == 'shipped' and order.status != 'shipped':
+#         send_shipped_email = True
+
+#     send_delivered_email = False
+#     if data.get('status') == 'delivered' and order.status != 'delivered':
+#         send_delivered_email = True
+
+
+#     # Update order fields (except order_items)
+#     serializer = OrderSerializer(order, data=data, partial=True)
+#     if serializer.is_valid():
+#         # Process order_items only if they are included in the request
+#         order_items_data = data.get('order_items')
+#         if order_items_data is not None:
+#             # Dictionary to track existing OrderItem objects
+#             existing_items = {item.id: item for item in order.items.all()}
+            
+#             for item_data in order_items_data:
+#                 product_id = item_data.get('product')
+#                 quantity = item_data.get('quantity', 0)
+                
+#                 try:
+#                     # Check if the OrderItem already exists
+#                     order_item = OrderItem.objects.get(order=order, product_id=product_id)
+                    
+#                     # Update the quantity and check stock availability
+#                     if int(quantity) > int(order_item.quantity):
+#                         additional_quantity_needed = int(quantity) - int(order_item.quantity)
+#                         if int(order_item.product.stock) < int(additional_quantity_needed):
+#                             return Response({'error': f'Insufficient stock for product {order_item.product.name}'}, status=status.HTTP_400_BAD_REQUEST)
+                        
+#                         # Reduce stock
+#                         order_item.product.stock -= additional_quantity_needed
+#                     elif int(quantity) < int(order_item.quantity):
+#                         # Increase stock back if the new quantity is less
+#                         stock_difference = int(order_item.quantity) - int(quantity)
+#                         order_item.product.stock += int(stock_difference)
+                    
+#                     # Update the order item quantity
+#                     order_item.quantity = int(quantity)
+#                     order_item.save()
+#                     order_item.product.save()
+#                     existing_items.pop(order_item.id, None)  # Remove from existing items tracker
+                    
+#                 except OrderItem.DoesNotExist:
+#                     # Handle new OrderItem creation
+#                     product = get_object_or_404(Product, pk=product_id)
+                    
+#                     if int(product.stock) < int(quantity):
+#                         return Response({'error': f'Insufficient stock for product {product.name}'}, status=status.HTTP_400_BAD_REQUEST)
+                    
+#                     # Create new OrderItem and reduce stock
+#                     OrderItem.objects.create(order=order, product=product, quantity=quantity)
+#                     product.stock -= int(quantity)
+#                     product.save()
+            
+#             # Delete any OrderItems that are not included in the request data
+#             for remaining_item in existing_items.values():
+#                 remaining_item.product.stock += remaining_item.quantity  # Restore stock
+#                 remaining_item.product.save()
+#                 remaining_item.delete()
+
+#         # Save the order after processing items (if any)
+#         order = serializer.save()
+
+#         # i want to check if the status data that comes from request is !== to the current status of the order and if it is then i want to send an email to the user
+#         if order.status == 'delivered' and order.email and order.tracking_code and send_delivered_email:
+#             send_email(
+#                 recipient_email=order.email,
+#                 subject="تم تسليم شحنتك",
+#                 message=f"""
+#                     <h2>تم تسليم شحنتك</h2>
+#                     <p style="margin-top: 15px">
+#                         تم تسليم الشحنة للمندوب وترقب وصولها اليوم من الساعة 9 صباحا حتى الساعة 9 مساءً
+#                     </p>
+#                     <p style="margin-top: 10px">
+#                         يمكنك تتبع الطلب من خلال هذا الكود {order.tracking_code}, من خلال <a href={front_end_url + '/orders/track/'}>هذه الصفحة</a>
+#                     </p>
+#                 """,
+#                 content_type="html"
+#             )
+#             print('email sent', order.email)
+
+#         if order.status == 'shipped' and order.email and order.tracking_code and send_shipped_email:
+#             send_email(
+#                 recipient_email=order.email,
+#                 subject="تم شحن طلبك",
+#                 message=f"""
+#                     <h2>تم تغيير حالة الطلب وسيتم توصيلة قريبا</h2>
+#                     <p style="margin-top: 15px">
+#                         تم شحن طلبك, ترقب مكالمة المندوب في اي وقت قريب
+#                     </p>
+#                     <p style="margin-top: 10px">
+#                         يمكنك تتبع الطلب من خلال هذا الكود {order.tracking_code}, من خلال <a href=${front_end_url + '/orders/track/'}>هذه الصفحة</a>
+#                     </p>
+#                 """,
+#                 content_type="html"
+#             )
+#             print('email sent', order.email)
+        
+
+#         # calculate total order
+#         order_items = order.items.all()
+#         order_total = 0
+#         for item in order_items:
+#             if item.product.offer_price:
+#                 order_total += item.product.offer_price * item.quantity
+#             else:
+#                 order_total += item.product.price * item.quantity
+            
+#         order_total += order.state.shipping_price
+
+#         if order.is_fast_shipping:
+#             order_total += int(order.state.fast_shipping_price)
+
+#         return Response(serializer.data, status=status.HTTP_200_OK)
+    
+#     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 
@@ -941,10 +1038,10 @@ def delete_order(request, pk):
     order = get_object_or_404(Order, pk=pk)
 
     # Restore stock for each order item
-    for item in order.items.all():
-        product = item.product
-        product.stock += item.quantity  # Restore the stock
-        product.save()
+    # for item in order.items.all():
+    #     product = item.product
+    #     product.stock += item.quantity  # Restore the stock
+    #     product.save()
 
     # Delete the order after restoring the stock
     order.delete()

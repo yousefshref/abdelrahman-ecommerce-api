@@ -194,12 +194,12 @@ class Order(models.Model):
         if self.pk:  # Update
             if self.status != "cancelled":
                 self.get_total_price()
-            if self.status == "cancelled":
-                for item in self.items.all():
-                    item.product.stock += int(item.quantity)
-                    item.quantity = 0
-                    item.save_base()
-                    item.product.save()
+            # if self.status == "cancelled":
+            #     for item in self.items.all():
+            #         item.product.stock += int(item.quantity)
+            #         item.quantity = 0
+            #         item.save_base()
+            #         item.product.save()
             self.check_seller(user)  # Pass the logged-in user for seller checks
         else:  # Create
             print("New order")
@@ -229,27 +229,27 @@ class OrderItem(models.Model):
         # if self.pk:
         if self.order.status != "cancelled":
             self.price = self.product.offer_price * self.quantity if self.product.offer_price else self.product.price * self.quantity
-        # Handle stock adjustments
-        if self.pk:  # If the OrderItem exists
-            old_quantity = OrderItem.objects.get(pk=self.pk).quantity
-            quantity_change = int(self.quantity) - int(old_quantity)
-            self.product.stock -= int(quantity_change)
-        else:  # If this is a new OrderItem
-            self.product.stock -= int(self.quantity)
+        # # Handle stock adjustments
+        # if self.pk:  # If the OrderItem exists
+        #     old_quantity = OrderItem.objects.get(pk=self.pk).quantity
+        #     quantity_change = int(self.quantity) - int(old_quantity)
+        #     self.product.stock -= int(quantity_change)
+        # else:  # If this is a new OrderItem
+        #     self.product.stock -= int(self.quantity)
         
-        if self.product.stock < 0:
-            raise ValueError("Not enough stock for this product!")
+        # if self.product.stock < 0:
+        #     raise ValueError("Not enough stock for this product!")
         
-        self.product.save()
+        # self.product.save()
         super().save(*args, **kwargs)
-        self.order.save()
+        # self.order.save()
     
 
 
-@receiver(pre_delete, sender=OrderItem)
-def restore_stock_on_delete(sender, instance, **kwargs):
-    instance.product.stock += instance.quantity
-    instance.product.save()
+# @receiver(pre_delete, sender=OrderItem)
+# def restore_stock_on_delete(sender, instance, **kwargs):
+#     instance.product.stock += instance.quantity
+#     instance.product.save()
 
 
 
